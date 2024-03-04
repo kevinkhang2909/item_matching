@@ -39,8 +39,3 @@ def rm_all_folder(path: Path):
 def make_dir(folder_name):
     if not folder_name.exists():
         folder_name.mkdir(parents=True, exist_ok=True)
-
-
-def pp_text(batch, preprocess, col: str) -> dict:
-    embeddings = preprocess.transform(batch[col]).toarray()
-    return {'embeddings': embeddings}

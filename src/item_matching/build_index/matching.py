@@ -7,10 +7,11 @@ import polars as pl
 from autofaiss import build_index
 from datasets import Dataset, concatenate_datasets, load_from_disk
 from loguru import logger
-from func import tfidf, pp_text, make_dir
+from .func import tfidf, make_dir
+from .model import Model
 
 logger.remove()
-logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{name}:{function}</cyan> | <level>{message}</level>')
+logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
 
 
 class Data:
@@ -26,16 +27,16 @@ class Data:
             make_dir(path_tmp[i])
 
         # model
-        fn_kwargs = {'col': f'{mode}_item_name_clean', 'preprocess': preprocess}
+        fn_kwargs = {'col': f'{mode}_item_name_clean', 'vectorizer': preprocess}
 
         # save embeddings into arrays
         total_sample = len(data)
-        num_chunks = total_sample // self.batch_size
+        num_chunks = total_sample // self.batch_size + 1
         logger.info(f'[Dataset] Total chunks {mode}: {num_chunks}')
 
-        for idx, b in tqdm(enumerate(range(0, total_sample, self.batch_size)), total=num_chunks):
+        for idx, b in enumerate(range(0, total_sample, self.batch_size)):
             # chunking
-            if i + self.batch_size >= total_sample:
+            if b + self.batch_size >= total_sample:
                 dataset = Dataset.from_pandas(data[b:].to_pandas())
             else:
                 dataset = Dataset.from_pandas(data[b:b + self.batch_size].to_pandas())
@@ -70,13 +71,15 @@ class BELargeScale:
 
         # dataset
         data = Data(self.path)
+        model = Model()
         path_tmp_db, path_tmp_q = None, None
         if self.text_sparse:
-            path_tmp_db = data.create_dataset(df_db, mode='db', preprocess=vectorizer, pp=pp_text)
-            path_tmp_q = data.create_dataset(df_q, mode='q', preprocess=vectorizer, pp=pp_text)
+            path_tmp_db = data.create_dataset(df_db, mode='db', preprocess=vectorizer, pp=model.pp_sparse_tfidf)
+            path_tmp_q = data.create_dataset(df_q, mode='q', preprocess=vectorizer, pp=model.pp_sparse_tfidf)
             del df_db
 
         # build index
+        logger.info(f'[Matching] Start building index')
         start = perf_counter()
         path_index = self.path / 'index'
         build_index(
@@ -87,7 +90,7 @@ class BELargeScale:
             metric_type='ip',
             verbose=30,
         )
-        logger.info(f'[Matching] Index: {perf_counter() - start:,.2f}s')
+        logger.info(f'[Matching] Building Index: {perf_counter() - start:,.2f}s')
 
         # load dataset shard
         dataset_db = concatenate_datasets([
@@ -107,6 +110,7 @@ class BELargeScale:
         path_result = self.path / 'result'
         make_dir(path_result)
 
+        logger.info(f'[Matching] Start retrieve')
         start = perf_counter()
         for idx, i in tqdm(enumerate(range(0, len(dataset_q), batch_size)), total=len(dataset_q) // batch_size):
             if i + batch_size >= len(dataset_q):
@@ -129,8 +133,7 @@ class BELargeScale:
             df_result = pl.DataFrame(result).drop(['embeddings'])
             df_result.write_parquet(path_result / f'result_{idx}.parquet')
             del score, result, df_score, df_result
-
-        logger.info(f'[Matching] Query: {perf_counter() - start:,.2f}s')
+        logger.info(f'[Matching] Retrieve: {perf_counter() - start:,.2f}s')
 
         # post process
         df_score = (
