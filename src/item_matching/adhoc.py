@@ -1,27 +1,41 @@
 from pathlib import Path
+import pandas as pd
 import polars as pl
-from .build_index.func import clean_text, rm_all_folder
+from .build_index.func import clean_text, rm_all_folder, check_file_type
 from .build_index.matching import BELargeScale
 
 
-def Matching(path: [str | Path], file_database: [str | Path], file_query: [str | Path]):
+def Matching(
+        path: [str | Path | pl.DataFrame | pd.DataFrame],
+        file_database: [str | Path] = None,
+        file_query: [str | Path] = None,
+        df_db: [pl.DataFrame | pd.DataFrame] = None,
+        df_q: [pl.DataFrame | pd.DataFrame] = None,
+):
+    # check if import df
+    if not df_db:
+        df_db = check_file_type(file_database)
+        df_q = check_file_type(file_query)
+
+    # Database
     df_db = (
-        pl.scan_csv(file_database)
+        df_db
         .pipe(clean_text)
         .select(pl.all().name.prefix('db_'))
         .collect()
         .drop_nulls()
     )
 
+    # Query
     df_q = (
-        pl.scan_csv(file_query)
+        df_q
         .pipe(clean_text)
         .select(pl.all().name.prefix('q_'))
         .collect()
         .drop_nulls()
     )
 
-    # match
+    # Match
     be = BELargeScale(path, 512)
 
     for cat in sorted(df_q['q_level1_global_be_category'].unique()):
