@@ -1,2 +1,2 @@
-from .adhoc import Matching
+from .main import Matching
 
