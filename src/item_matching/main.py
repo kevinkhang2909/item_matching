@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 from time import perf_counter
-from .build_index.func import clean_text, rm_all_folder, check_file_type
+from .build_index.func import clean_text, rm_all_folder, check_file_type, make_dir
 from .build_index.matching import BELargeScale
 
 
@@ -59,14 +59,16 @@ class Matching:
         print(json_stats['query shape'])
 
         # Match
-        be = BELargeScale(self.path, text_sparse=512)
+        be = BELargeScale(self.path, text_dense=True)
         if match_mode == 'image':
-            be = BELargeScale(self.path, img_dim=768)
+            be = BELargeScale(self.path, img_dim=True)
 
         start = perf_counter()
+        path_match_result = self.path / 'result_match'
+        make_dir(path_match_result)
         for cat in sorted(self.df_q['q_level1_global_be_category'].unique()):
             # filter cat
-            file_name = self.path / f'{cat}.{export_type}'
+            file_name = path_match_result / f'{cat}.{export_type}'
             chunk_db = self.df_db.filter(pl.col(f'db_level1_global_be_category') == cat)
             chunk_q = self.df_q.filter(pl.col(f'q_level1_global_be_category') == cat)
             print(f'🐋 Start matching by [{match_mode}] cat: {cat} - Database shape {chunk_db.shape}, Query shape {chunk_q.shape}')
@@ -94,5 +96,6 @@ class Matching:
 
         time_perf = perf_counter() - start
         json_stats.update({'time_perf': time_perf})
+        json_stats.update({'path result': path_match_result})
         print(f'🐋 Your files are ready, please find here: {self.path}')
         return json_stats

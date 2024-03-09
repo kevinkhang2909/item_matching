@@ -66,11 +66,12 @@ class BELargeScale:
             self,
             path: Path,
             text_sparse: int = None,
-            img_dim: int = None,
-            text_dense: int = None,
+            img_dim: bool = False,
+            text_dense: bool = False,
     ):
         self.text_sparse = text_sparse
         self.img_dim = img_dim
+        self.text_dense = text_dense
         self.path = path
 
     def transform_tfidf(
@@ -94,16 +95,38 @@ class BELargeScale:
                                          col_embed=col_embed, batch_size=768)
         return path_tmp_db, path_tmp_q
 
-    def transform_img(self, df_db, df_q, col_embed: str):
+    def transform_img(
+            self,
+            df_db: pl.DataFrame,
+            df_q: pl.DataFrame,
+            col_embed: str = ''
+    ):
         # model
         data = Data(self.path)
         model = Model()
-        img_model, img_processor = model.get_img(model_id='openai/clip-vit-base-patch32')
+        img_model, img_processor = model.get_img_model(model_id='openai/clip-vit-base-patch32')
         # transform embed
         fn_kwargs = {'col': f'db_file_path', 'processor': img_processor, 'model': img_model}
         path_tmp_db = data.create_dataset(df_db, mode='db', pp=model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed)
         fn_kwargs = {'col': f'q_file_path', 'processor': img_processor, 'model': img_model}
         path_tmp_q = data.create_dataset(df_q, mode='q', pp=model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed)
+        return path_tmp_db, path_tmp_q
+
+    def transform_text_dense(
+            self,
+            df_db: pl.DataFrame,
+            df_q: pl.DataFrame,
+            col_embed: str = ''
+    ):
+        # model
+        data = Data(self.path)
+        model = Model()
+        text_model = model.get_text_model()
+        # transform embed
+        fn_kwargs = {'col': f'db_file_path', 'model': text_model}
+        path_tmp_db = data.create_dataset(df_db, mode='db', pp=model.pp_dense, fn_kwargs=fn_kwargs, col_embed=col_embed)
+        fn_kwargs = {'col': f'q_file_path', 'model': text_model}
+        path_tmp_q = data.create_dataset(df_q, mode='q', pp=model.pp_dense, fn_kwargs=fn_kwargs, col_embed=col_embed)
         return path_tmp_db, path_tmp_q
 
     def match(self, df_db: pl.DataFrame, df_q: pl.DataFrame, top_k: int = 10):
@@ -118,6 +141,10 @@ class BELargeScale:
             # embed col
             col_embed = 'img_embed'
             path_tmp_db, path_tmp_q = self.transform_img(df_db, df_q, col_embed)
+
+        elif self.text_dense:
+            col_embed = 'dense_embed'
+            path_tmp_db, path_tmp_q = self.transform_text_dense(df_db, df_q, col_embed)
 
         # Build index
         logger.info(f'[Matching] Start building index')
@@ -172,6 +199,7 @@ class BELargeScale:
             df_score.write_parquet(self.path_result / f'score_{idx}.parquet')
 
             df_result = pl.DataFrame(result).drop([col_embed])
+            print(f'[Matching] Batch query result shape: {df_result.shape}')
             df_result.write_parquet(self.path_result / f'result_{idx}.parquet')
             del score, result, df_score, df_result
         logger.info(f'[Matching] Retrieve: {perf_counter() - start:,.2f}s')
