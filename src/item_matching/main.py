@@ -59,9 +59,11 @@ class Matching:
         print(json_stats['query shape'])
 
         # Match
-        be = BELargeScale(self.path, text_dense=True)
+        be = BELargeScale(self.path, text_sparse=512)
         if match_mode == 'image':
             be = BELargeScale(self.path, img_dim=True)
+        elif match_mode == 'text_dense':
+            be = BELargeScale(self.path, text_dense=True)
 
         start = perf_counter()
         path_match_result = self.path / 'result_match'

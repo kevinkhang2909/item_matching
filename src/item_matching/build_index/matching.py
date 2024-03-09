@@ -73,6 +73,8 @@ class BELargeScale:
         self.img_dim = img_dim
         self.text_dense = text_dense
         self.path = path
+        self.data = Data(self.path)
+        self.model = Model()
 
     def transform_tfidf(
             self,
@@ -80,19 +82,20 @@ class BELargeScale:
             df_q: pl.DataFrame,
             col_embed: str = ''
     ):
-        # input
-        data = Data(self.path)
-        model = Model()
         # tf-idf
         all_items = list(set(df_db['db_item_name_clean'].to_list() + df_q['q_item_name_clean'].to_list()))
         vectorizer = tfidf(all_items, dim=self.text_sparse)
         # transform embed
         fn_kwargs = {'col': f'db_item_name_clean', 'vectorizer': vectorizer}
-        path_tmp_db = data.create_dataset(df_db, mode='db', pp=model.pp_sparse_tfidf, fn_kwargs=fn_kwargs,
-                                          col_embed=col_embed, batch_size=768)
+        path_tmp_db = self.data.create_dataset(
+            df_db, mode='db', pp=self.model.pp_sparse_tfidf, fn_kwargs=fn_kwargs,
+            col_embed=col_embed, batch_size=768
+        )
         fn_kwargs = {'col': f'q_item_name_clean', 'vectorizer': vectorizer}
-        path_tmp_q = data.create_dataset(df_q, mode='q', pp=model.pp_sparse_tfidf, fn_kwargs=fn_kwargs,
-                                         col_embed=col_embed, batch_size=768)
+        path_tmp_q = self.data.create_dataset(
+            df_q, mode='q', pp=self.model.pp_sparse_tfidf, fn_kwargs=fn_kwargs,
+            col_embed=col_embed, batch_size=768
+        )
         return path_tmp_db, path_tmp_q
 
     def transform_img(
@@ -101,15 +104,16 @@ class BELargeScale:
             df_q: pl.DataFrame,
             col_embed: str = ''
     ):
-        # model
-        data = Data(self.path)
-        model = Model()
-        img_model, img_processor = model.get_img_model(model_id='openai/clip-vit-base-patch32')
+        img_model, img_processor = self.model.get_img_model(model_id='openai/clip-vit-base-patch32')
         # transform embed
         fn_kwargs = {'col': f'db_file_path', 'processor': img_processor, 'model': img_model}
-        path_tmp_db = data.create_dataset(df_db, mode='db', pp=model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed)
+        path_tmp_db = self.data.create_dataset(
+            df_db, mode='db', pp=self.model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed
+        )
         fn_kwargs = {'col': f'q_file_path', 'processor': img_processor, 'model': img_model}
-        path_tmp_q = data.create_dataset(df_q, mode='q', pp=model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed)
+        path_tmp_q = self.data.create_dataset(
+            df_q, mode='q', pp=self.model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed
+        )
         return path_tmp_db, path_tmp_q
 
     def transform_text_dense(
@@ -118,15 +122,16 @@ class BELargeScale:
             df_q: pl.DataFrame,
             col_embed: str = ''
     ):
-        # model
-        data = Data(self.path)
-        model = Model()
-        text_model = model.get_text_model()
+        text_model = self.model.get_text_model()
         # transform embed
-        fn_kwargs = {'col': f'db_file_path', 'model': text_model}
-        path_tmp_db = data.create_dataset(df_db, mode='db', pp=model.pp_dense, fn_kwargs=fn_kwargs, col_embed=col_embed)
-        fn_kwargs = {'col': f'q_file_path', 'model': text_model}
-        path_tmp_q = data.create_dataset(df_q, mode='q', pp=model.pp_dense, fn_kwargs=fn_kwargs, col_embed=col_embed)
+        fn_kwargs = {'col': f'db_item_name_clean', 'model': text_model}
+        path_tmp_db = self.data.create_dataset(
+            df_db, mode='db', pp=self.model.pp_dense, fn_kwargs=fn_kwargs, col_embed=col_embed
+        )
+        fn_kwargs = {'col': f'q_item_name_clean', 'model': text_model}
+        path_tmp_q = self.data.create_dataset(
+            df_q, mode='q', pp=self.model.pp_dense, fn_kwargs=fn_kwargs, col_embed=col_embed
+        )
         return path_tmp_db, path_tmp_q
 
     def match(self, df_db: pl.DataFrame, df_q: pl.DataFrame, top_k: int = 10):
@@ -179,6 +184,7 @@ class BELargeScale:
         make_dir(self.path_result)
 
         logger.info(f'[Matching] Start retrieve')
+        num_batches = len(dataset_q) // batch_size + 1
         start = perf_counter()
         for idx, i in enumerate(range(0, len(dataset_q), batch_size)):
             if i + batch_size >= len(dataset_q):
@@ -199,7 +205,7 @@ class BELargeScale:
             df_score.write_parquet(self.path_result / f'score_{idx}.parquet')
 
             df_result = pl.DataFrame(result).drop([col_embed])
-            print(f'[Matching] Batch query result shape: {df_result.shape}')
+            print(f'[Matching] Batch {idx}/{num_batches} match result shape: {df_result.shape}')
             df_result.write_parquet(self.path_result / f'result_{idx}.parquet')
             del score, result, df_score, df_result
         logger.info(f'[Matching] Retrieve: {perf_counter() - start:,.2f}s')
