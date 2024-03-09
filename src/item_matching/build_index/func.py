@@ -42,9 +42,10 @@ def make_dir(folder_name):
 
 
 def check_file_type(file_path):
-    file_type = ''
     if isinstance(file_path, str):
         file_type = Path(file_path).suffix[1:]
+    else:
+        file_type = file_path.suffix[1:]
 
     dict_ = {
         'csv': pl.read_csv,
