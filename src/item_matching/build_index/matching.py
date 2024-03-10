@@ -184,7 +184,7 @@ class BELargeScale:
         make_dir(self.path_result)
 
         logger.info(f'[Matching] Start retrieve')
-        num_batches = len(dataset_q) // batch_size + 1
+        num_batches = len(dataset_q) // batch_size
         start = perf_counter()
         for idx, i in enumerate(range(0, len(dataset_q), batch_size)):
             if i + batch_size >= len(dataset_q):
