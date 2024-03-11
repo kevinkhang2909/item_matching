@@ -53,8 +53,8 @@ class Matching:
         if clean_text:
             self.df_db = self.clean_text(self.df_db, 'db')
             self.df_q = self.clean_text(self.df_q, 'q')
-        json_stats.update({'database shape': self.df_db.shape})
-        json_stats.update({'query shape': self.df_q.shape})
+        json_stats.update({'database shape': self.df_db.shape[0]})
+        json_stats.update({'query shape': self.df_q.shape[0]})
         print(json_stats['database shape'])
         print(json_stats['query shape'])
 
