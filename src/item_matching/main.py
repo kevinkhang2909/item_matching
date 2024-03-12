@@ -3,6 +3,7 @@ import pandas as pd
 import polars as pl
 from time import perf_counter
 from .build_index.func import clean_text, rm_all_folder, check_file_type, make_dir
+# from .build_index.func_img import pipeline_img
 from .build_index.matching import BELargeScale
 
 
@@ -32,13 +33,13 @@ class Matching:
     def run(
             self,
             match_mode: str = 'text',
-            clean_text: bool = True,
-            export_type: str = 'parquet'
+            use_clean_text: bool = True,
+            export_type: str = 'parquet',
     ):
         """
         Run matching processes
         :param match_mode: text | image
-        :param clean_text: True | False
+        :param use_clean_text: True | False
         :param export_type: parquet | csv
         :return: json
         """
@@ -50,9 +51,14 @@ class Matching:
             self.df_q = check_file_type(self.file_query)
 
         # Database
-        if clean_text:
+        if use_clean_text:
             self.df_db = self.clean_text(self.df_db, 'db')
             self.df_q = self.clean_text(self.df_q, 'q')
+        # elif match_mode == 'image':
+        #     path_image = self.path / 'download_image'
+        #     pipeline_img(self.df_db, path_image, 'db')
+        #     pipeline_img(self.df_q, path_image, 'q')
+
         json_stats.update({'database shape': self.df_db.shape[0]})
         json_stats.update({'query shape': self.df_q.shape[0]})
         print(json_stats['database shape'])
@@ -84,6 +90,8 @@ class Matching:
 
             # match
             df_match = be.match(chunk_db, chunk_q, top_k=10)
+
+            # export
             if export_type == 'parquet':
                 df_match.write_parquet(file_name)
             elif export_type == 'csv':
@@ -96,6 +104,7 @@ class Matching:
                 rm_all_folder(self.path / f'{i}_array')
                 rm_all_folder(self.path / f'{i}_ds')
 
+        # update log
         time_perf = perf_counter() - start
         json_stats.update({'time_perf': time_perf})
         json_stats.update({'path result': path_match_result})
