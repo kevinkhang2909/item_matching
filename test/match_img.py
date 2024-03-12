@@ -1,7 +1,6 @@
 from src.item_matching import Matching
 from pathlib import Path
 import polars as pl
-import duckdb
 from src.item_matching.build_index.func_img import PipelineImage
 
 

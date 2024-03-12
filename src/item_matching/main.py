@@ -3,7 +3,6 @@ import pandas as pd
 import polars as pl
 from time import perf_counter
 from .build_index.func import clean_text, rm_all_folder, check_file_type, make_dir
-# from .build_index.func_img import pipeline_img
 from .build_index.matching import BELargeScale
 
 
@@ -54,10 +53,6 @@ class Matching:
         if use_clean_text:
             self.df_db = self.clean_text(self.df_db, 'db')
             self.df_q = self.clean_text(self.df_q, 'q')
-        # elif match_mode == 'image':
-        #     path_image = self.path / 'download_image'
-        #     pipeline_img(self.df_db, path_image, 'db')
-        #     pipeline_img(self.df_q, path_image, 'q')
 
         json_stats.update({'database shape': self.df_db.shape[0]})
         json_stats.update({'query shape': self.df_q.shape[0]})
