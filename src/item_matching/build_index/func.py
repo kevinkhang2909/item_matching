@@ -2,7 +2,7 @@ from pathlib import Path
 import polars as pl
 
 
-def clean_text(data, col: str = 'item_name'):
+def clean_text(data, col: str = 'item_name') -> pl.DataFrame:
     import re
 
     regex = "[\(\[\<\"].*?[\)\]\>\"]"
@@ -27,7 +27,7 @@ def tfidf(lst_item, dim: int = 512):
     return vectorizer
 
 
-def rm_all_folder(path: Path):
+def rm_all_folder(path: Path) -> None:
     for child in path.glob('*'):
         if child.is_file():
             child.unlink()
@@ -36,16 +36,15 @@ def rm_all_folder(path: Path):
     path.rmdir()
 
 
-def make_dir(folder_name):
+def make_dir(folder_name: Path) -> None:
     if not folder_name.exists():
         folder_name.mkdir(parents=True, exist_ok=True)
 
 
-def check_file_type(file_path):
+def check_file_type(file_path: str) -> pl.DataFrame:
     if isinstance(file_path, str):
-        file_type = Path(file_path).suffix[1:]
-    else:
-        file_type = file_path.suffix[1:]
+        file_path = Path(file_path).suffix[1:]
+    file_type = file_path.suffix[1:]
 
     dict_ = {
         'csv': pl.read_csv,

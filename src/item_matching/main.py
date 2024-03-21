@@ -9,6 +9,7 @@ from .build_index.matching import BELargeScale
 class Matching:
     def __init__(
             self,
+            col_category: str,
             path: str | Path | pl.DataFrame | pd.DataFrame,
             file_database: str | Path = None,
             file_query: str | Path = None,
@@ -20,6 +21,7 @@ class Matching:
         self.file_query = file_query
         self.df_db = df_db
         self.df_q = df_q
+        self.col_category = col_category
 
     def clean_text(self, data: pl.DataFrame, mode: str):
         return (
@@ -50,7 +52,7 @@ class Matching:
             self.df_q = check_file_type(self.file_query)
 
         # Database
-        if use_clean_text:
+        if match_mode != 'image':
             self.df_db = self.clean_text(self.df_db, 'db')
             self.df_q = self.clean_text(self.df_q, 'q')
 
@@ -69,11 +71,11 @@ class Matching:
         start = perf_counter()
         path_match_result = self.path / 'result_match'
         make_dir(path_match_result)
-        for cat in sorted(self.df_q['q_level1_global_be_category'].unique()):
+        for cat in sorted(self.df_q[f'q_{self.col_category}'].unique()):
             # filter cat
             file_name = path_match_result / f'{cat}.{export_type}'
-            chunk_db = self.df_db.filter(pl.col(f'db_level1_global_be_category') == cat)
-            chunk_q = self.df_q.filter(pl.col(f'q_level1_global_be_category') == cat)
+            chunk_db = self.df_db.filter(pl.col(f'db_{self.col_category}') == cat)
+            chunk_q = self.df_q.filter(pl.col(f'q_{self.col_category}') == cat)
             print(f'🐋 Start matching by [{match_mode}] cat: {cat} - Database shape {chunk_db.shape}, Query shape {chunk_q.shape}')
 
             if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
