@@ -4,7 +4,7 @@ import polars as pl
 from core_pro.ultilities import make_dir
 import sys
 from loguru import logger
-from func import clean_text
+from item_matching.build_index.func import clean_text
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
