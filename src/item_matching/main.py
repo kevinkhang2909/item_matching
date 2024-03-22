@@ -34,14 +34,15 @@ class Matching:
     def run(
             self,
             match_mode: str = 'text',
-            use_clean_text: bool = True,
             export_type: str = 'parquet',
+            top_k: int = 10,
     ):
         """
         Run matching processes
         :param match_mode: text | image
         :param use_clean_text: True | False
         :param export_type: parquet | csv
+        :param top_k: top k matches
         :return: json
         """
         json_stats = {}
@@ -86,7 +87,7 @@ class Matching:
                 continue
 
             # match
-            df_match = be.match(chunk_db, chunk_q, top_k=10)
+            df_match = be.match(chunk_db, chunk_q, top_k=top_k)
 
             # export
             if export_type == 'parquet':
