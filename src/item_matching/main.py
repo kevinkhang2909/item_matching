@@ -40,7 +40,6 @@ class Matching:
         """
         Run matching processes
         :param match_mode: text | image
-        :param use_clean_text: True | False
         :param export_type: parquet | csv
         :param top_k: top k matches
         :return: json

@@ -4,6 +4,7 @@ import polars as pl
 from core_pro.ultilities import make_dir
 import sys
 from loguru import logger
+from tqdm import tqdm
 from item_matching.build_index.func import clean_text
 
 logger.remove()
@@ -45,9 +46,9 @@ class PipelineImage:
 
         # listing
         path = self.path_image / f'img_{mode}'
-        lst_json = [str(i) for i in sorted(path.glob('*/*.json'))]
-        lst_img = [str(i) for i in sorted(path.glob('*/*.jpg'))]
+        lst_json = [str(i) for i in tqdm(sorted(path.glob('*/*.json')), desc=f'Loading json in images folder')]
         lst_file = [json.loads(open(i, "r").read())['url'] for i in lst_json]
+        lst_img = [str(i) for i in tqdm(sorted(path.glob('*/*.jpg')), desc='Loading jpg in images folder')]
         df = pl.DataFrame({
             f'{mode}_{self.col_image}': lst_file,
             f'{mode}_file_path': lst_img,
