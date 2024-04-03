@@ -46,9 +46,9 @@ class PipelineImage:
 
         # listing
         path = self.path_image / f'img_{mode}'
-        lst_json = [str(i) for i in tqdm(sorted(path.glob('*/*.json')), desc=f'Loading json in images folder')]
-        lst_file = [json.loads(open(i, "r").read())['url'] for i in lst_json]
-        lst_img = [str(i) for i in tqdm(sorted(path.glob('*/*.jpg')), desc='Loading jpg in images folder')]
+        lst_json = [str(i) for i in tqdm(sorted(path.glob('*/*.json')), desc=f'Checking json in folder')]
+        lst_file = [json.loads(open(i, "r").read())['url'] for i in tqdm(lst_json, desc='Loading json in folder')]
+        lst_img = [str(i) for i in tqdm(sorted(path.glob('*/*.jpg')), desc='Loading jpg in folder')]
         df = pl.DataFrame({
             f'{mode}_{self.col_image}': lst_file,
             f'{mode}_file_path': lst_img,
