@@ -1,7 +1,7 @@
 from pathlib import Path
 import duckdb
 import polars as pl
-from src.item_matching.build_index.func import download_images
+from src.item_matching.build_index.func_img import PipelineImage
 
 
 # path
@@ -25,4 +25,4 @@ print(df.shape, df['item_name'].n_unique())
 # download
 path_parq = path / f'{name}_0.parquet'
 df.write_parquet(path_parq)
-download_images(path, name, 'image_url')
+PipelineImage(path).download_images(name)

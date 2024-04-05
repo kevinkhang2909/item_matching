@@ -39,16 +39,3 @@ def rm_all_folder(path: Path) -> None:
 def make_dir(folder_name: Path) -> None:
     if not folder_name.exists():
         folder_name.mkdir(parents=True, exist_ok=True)
-
-
-def check_file_type(file_path: str) -> pl.DataFrame:
-    if isinstance(file_path, str):
-        file_path = Path(file_path).suffix[1:]
-    file_type = file_path.suffix[1:]
-
-    dict_ = {
-        'csv': pl.read_csv,
-        'parquet': pl.read_parquet
-    }
-    df = dict_[file_type](file_path)
-    return df

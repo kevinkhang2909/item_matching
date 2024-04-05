@@ -3,9 +3,14 @@ from pathlib import Path
 import polars as pl
 
 
-path = Path('/home/kevin/Downloads/yang')
-path_q = path / 'fss (query)/fss_itemid_Home & Living.csv'
-path_db = path / 'nonfss (database)/nonfss_itemid_Home & Living.csv'
+path = Path.home() / 'Downloads/item_match'
+path_db = path / 'db_0.parquet'
+path_q = path / 'db_0.parquet'
 db = pl.read_csv(path_db)
 q = pl.read_csv(path_q)
-json_stats = Matching(path, df_q=q, df_db=db).run(match_mode='text')
+json_stats = Matching(
+    col_category='level1_kpi_category',
+    path=path,
+    df_db=db,
+    df_q=q
+).run(match_mode='text')

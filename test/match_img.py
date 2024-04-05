@@ -4,10 +4,10 @@ import polars as pl
 from src.item_matching.build_index.func_img import PipelineImage
 
 
-path = Path('/home/kevin/Downloads/cb')
+path = Path.home() / 'Downloads/item_match'
 
 # db
-path_db = path / 'cb_2024-03-07.parquet'
+path_db = path / 'db_0.parquet'
 pipe = PipelineImage(path)
 df_db = pl.read_parquet(path_db)
 df_db, df_img_db = pipe.run(df_db, mode='db', download=False)
@@ -16,4 +16,10 @@ df_db, df_img_db = pipe.run(df_db, mode='db', download=False)
 df_q = df_db.clone()
 df_q.columns = [f'q_{i.split('db_')[1]}' for i in df_db.columns]
 
-json_stats = Matching(path, df_q=df_q, df_db=df_db).run(match_mode='image', use_clean_text=False, export_type='csv')
+json_stats = Matching(
+    col_category='level1_kpi_category',
+    path=path,
+    df_q=df_q,
+    df_db=df_db,
+    query_batch_size=300_000
+).run(match_mode='image', export_type='csv')

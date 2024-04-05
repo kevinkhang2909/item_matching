@@ -2,7 +2,12 @@ from src.item_matching import Matching
 from pathlib import Path
 
 
-path = Path('/home/kevin/Downloads/yang')
-path_db = path / 'fss (query)/fss_itemid_Beauty.csv'
-path_q = path / 'nonfss (database)/nonfss_itemid_Beauty.csv'
-json_stats = Matching(path, path_db, path_q).run(match_mode='text')
+path = Path.home() / 'Downloads/item_match'
+path_db = path / 'db_0.parquet'
+path_q = path / 'db_0.parquet'
+json_stats = Matching(
+    col_category='level1_kpi_category',
+    path=path,
+    path_database=path_db,
+    path_query=path_q
+).run(match_mode='text')

@@ -1,8 +1,9 @@
 from pathlib import Path
+import duckdb
 import pandas as pd
 import polars as pl
 from time import perf_counter
-from .build_index.func import clean_text, rm_all_folder, check_file_type, make_dir
+from .build_index.func import rm_all_folder, clean_text, make_dir
 from .build_index.matching import BELargeScale
 
 
@@ -11,25 +12,54 @@ class Matching:
             self,
             col_category: str,
             path: str | Path | pl.DataFrame | pd.DataFrame,
-            file_database: str | Path = None,
-            file_query: str | Path = None,
+            path_database: str | Path = None,
+            path_query: str | Path = None,
             df_db: pl.DataFrame | pd.DataFrame = None,
             df_q: pl.DataFrame | pd.DataFrame = None,
+            query_batch_size: int = 500_000,
     ):
         self.path = path
-        self.file_database = file_database
-        self.file_query = file_query
+        self.path_database = path_database
+        self.path_query = path_query
         self.df_db = df_db
         self.df_q = df_q
         self.col_category = col_category
+        self.query_batch_size = query_batch_size
 
-    def clean_text(self, data: pl.DataFrame, mode: str):
-        return (
-            data
-            .pipe(clean_text)
-            .select(pl.all().name.prefix(f'{mode}_'))
-            .drop_nulls()
-        )
+    def check_file_type(self, file_path: str = None, df: pl.DataFrame = None, mode: str = '') -> dict:
+        # import data
+        if file_path:
+            # check path
+            if isinstance(file_path, str):
+                file_path = Path(file_path)
+            file_type = file_path.suffix[1:]
+            # read polars
+            # dict_ = {
+            #     'csv': pl.read_csv,
+            #     'parquet': pl.read_parquet
+            # }
+            # df = dict_[file_type](file_path)
+            # read duckdb
+            query = f"""select * from read_{file_type}('{file_path}')"""
+            df = (
+                duckdb.sql(query).pl()
+                .pipe(clean_text)
+                .select(pl.all().name.prefix(f'{mode}_'))
+                .drop_nulls()
+            )
+        else:
+            df = df
+
+        # export
+        file_path = self.path / f'{mode}_text_clean.parquet'
+        df.write_parquet(file_path)
+
+        # status
+        return {
+            f'{mode}_file_clean_path': file_path,
+            f'{mode}_data_shape': df.shape[0],
+            f'{mode}_col_category': sorted(df[f'{mode}_{self.col_category}'].unique())
+        }
 
     def run(
             self,
@@ -44,40 +74,45 @@ class Matching:
         :param top_k: top k matches
         :return: json
         """
+        # init
         json_stats = {}
 
-        # check if import df
-        if self.file_database:
-            self.df_db = check_file_type(self.file_database)
-            self.df_q = check_file_type(self.file_query)
-
-        # Database
-        if match_mode != 'image':
-            self.df_db = self.clean_text(self.df_db, 'db')
-            self.df_q = self.clean_text(self.df_q, 'q')
-
-        json_stats.update({'database shape': self.df_db.shape[0]})
-        json_stats.update({'query shape': self.df_q.shape[0]})
-        print(json_stats['database shape'])
-        print(json_stats['query shape'])
+        # read file
+        status = self.check_file_type(file_path=self.path_database, df=self.df_db, mode='db')
+        json_stats.update(status)
+        status = self.check_file_type(file_path=self.path_query, df=self.df_q, mode='q')
+        json_stats.update(status)
 
         # Match
         be = BELargeScale(self.path, text_sparse=512)
         if match_mode == 'image':
-            be = BELargeScale(self.path, img_dim=True)
+            be = BELargeScale(self.path, img_dim=True, query_batch_size=self.query_batch_size)
         elif match_mode == 'text_dense':
             be = BELargeScale(self.path, text_dense=True)
 
         start = perf_counter()
         path_match_result = self.path / 'result_match'
         make_dir(path_match_result)
-        for cat in sorted(self.df_q[f'q_{self.col_category}'].unique()):
+        for cat in status['q_col_category']:
             # filter cat
             file_name = path_match_result / f'{cat}.{export_type}'
-            chunk_db = self.df_db.filter(pl.col(f'db_{self.col_category}') == cat)
-            chunk_q = self.df_q.filter(pl.col(f'q_{self.col_category}') == cat)
+
+            # read chunk cat
+            query = f"""
+            select * 
+            from read_parquet('{json_stats[f'db_file_clean_path']}') 
+            where db_{self.col_category} = '{cat}'
+            """
+            chunk_db = duckdb.sql(query).pl()
+            query = f"""
+            select * 
+            from read_parquet('{json_stats[f'q_file_clean_path']}') 
+            where q_{self.col_category} = '{cat}'
+            """
+            chunk_q = duckdb.sql(query).pl()
             print(f'🐋 Start matching by [{match_mode}] cat: {cat} - Database shape {chunk_db.shape}, Query shape {chunk_q.shape}')
 
+            # check
             if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
                 print(f'Database/Query have no data')
                 continue

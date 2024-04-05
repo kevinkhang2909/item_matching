@@ -68,6 +68,7 @@ class BELargeScale:
             text_sparse: int = None,
             img_dim: bool = False,
             text_dense: bool = False,
+            query_batch_size: int = 500_000
     ):
         self.text_sparse = text_sparse
         self.img_dim = img_dim
@@ -75,6 +76,7 @@ class BELargeScale:
         self.path = path
         self.data = Data(self.path)
         self.model = Model()
+        self.query_batch_size = query_batch_size
 
     def transform_tfidf(
             self,
@@ -179,24 +181,22 @@ class BELargeScale:
         ])
 
         # Batch query
-        batch_size = 500_000
         self.path_result = self.path / 'result'
         make_dir(self.path_result)
 
-        logger.info(f'[Matching] Start retrieve')
-        num_batches = len(dataset_q) // batch_size
+        num_batches = len(dataset_q) // self.query_batch_size
+        logger.info(f'[Matching] Start retrieve: num batches {num_batches}')
         start = perf_counter()
-        for idx, i in enumerate(range(0, len(dataset_q), batch_size)):
-            if i + batch_size >= len(dataset_q):
+        for idx, i in enumerate(range(0, len(dataset_q), self.query_batch_size)):
+            if i + self.query_batch_size >= len(dataset_q):
                 batched_queries = dataset_q[i:]
             else:
-                batched_queries = dataset_q[i:i + batch_size]
+                batched_queries = dataset_q[i:i + self.query_batch_size]
 
             # query
-            batched_query_embeddings = np.asarray(batched_queries[col_embed])
             score, result = dataset_db.get_nearest_examples_batch(
                 col_embed,
-                batched_query_embeddings,
+                batched_queries[col_embed],
                 k=top_k
             )
 
@@ -207,6 +207,7 @@ class BELargeScale:
             df_result = pl.DataFrame(result).drop([col_embed])
             print(f'[Matching] Batch {idx}/{num_batches} match result shape: {df_result.shape}')
             df_result.write_parquet(self.path_result / f'result_{idx}.parquet')
+
             del score, result, df_score, df_result
         logger.info(f'[Matching] Retrieve: {perf_counter() - start:,.2f}s')
 
