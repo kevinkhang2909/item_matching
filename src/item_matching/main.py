@@ -14,44 +14,38 @@ class Matching:
             path: str | Path | pl.DataFrame | pd.DataFrame,
             path_database: str | Path = None,
             path_query: str | Path = None,
-            df_db: pl.DataFrame | pd.DataFrame = None,
-            df_q: pl.DataFrame | pd.DataFrame = None,
             query_batch_size: int = 500_000,
     ):
         self.path = path
         self.path_database = path_database
         self.path_query = path_query
-        self.df_db = df_db
-        self.df_q = df_q
         self.col_category = col_category
         self.query_batch_size = query_batch_size
 
-    def check_file_type(self, file_path: str = None, df: pl.DataFrame = None, mode: str = '') -> dict:
-        # import data
-        if file_path:
-            # check path
-            if isinstance(file_path, str):
-                file_path = Path(file_path)
-            file_type = file_path.suffix[1:]
-            # read polars
-            # dict_ = {
-            #     'csv': pl.read_csv,
-            #     'parquet': pl.read_parquet
-            # }
-            # df = dict_[file_type](file_path)
-            # read duckdb
-            query = f"""select * from read_{file_type}('{file_path}')"""
+    def check_file_type(
+            self,
+            file_path: Path,
+            mode: str = '',
+            match_mode: str = 'text_dense'
+    ) -> dict:
+        # check path
+        file_type = file_path.suffix[1:]
+
+        # read duckdb
+        query = f"""select * from read_{file_type}('{file_path}')"""
+        df = duckdb.sql(query).pl()
+
+        # clean data
+        if match_mode != 'image':
             df = (
-                duckdb.sql(query).pl()
+                df
                 .pipe(clean_text)
                 .select(pl.all().name.prefix(f'{mode}_'))
                 .drop_nulls()
             )
-        else:
-            df = df
 
         # export
-        file_path = self.path / f'{mode}_text_clean.parquet'
+        file_path = self.path / f'{mode}_{match_mode}_clean.parquet'
         df.write_parquet(file_path)
 
         # status
@@ -63,13 +57,13 @@ class Matching:
 
     def run(
             self,
-            match_mode: str = 'text',
+            match_mode: str = 'text_dense',
             export_type: str = 'parquet',
             top_k: int = 10,
     ):
         """
         Run matching processes
-        :param match_mode: text | image
+        :param match_mode: text | text_dense | image
         :param export_type: parquet | csv
         :param top_k: top k matches
         :return: json
@@ -78,9 +72,9 @@ class Matching:
         json_stats = {}
 
         # read file
-        status = self.check_file_type(file_path=self.path_database, df=self.df_db, mode='db')
+        status = self.check_file_type(file_path=self.path_database, mode='db')
         json_stats.update(status)
-        status = self.check_file_type(file_path=self.path_query, df=self.df_q, mode='q')
+        status = self.check_file_type(file_path=self.path_query, mode='q')
         json_stats.update(status)
 
         # Match
@@ -93,7 +87,7 @@ class Matching:
         start = perf_counter()
         path_match_result = self.path / 'result_match'
         make_dir(path_match_result)
-        for cat in status['q_col_category']:
+        for cat in json_stats['q_col_category']:
             # filter cat
             file_name = path_match_result / f'{cat}.{export_type}'
 
@@ -138,7 +132,6 @@ class Matching:
 
         # update log
         time_perf = perf_counter() - start
-        json_stats.update({'time_perf': time_perf})
-        json_stats.update({'path result': path_match_result})
+        json_stats.update({'time_perf': time_perf, 'path result': path_match_result})
         print(f'🐋 Your files are ready, please find here: {self.path}')
         return json_stats
