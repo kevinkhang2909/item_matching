@@ -15,18 +15,19 @@ class Matching:
             path_database: str | Path = None,
             path_query: str | Path = None,
             query_batch_size: int = 500_000,
+            match_mode: str = 'text_dense',
     ):
         self.path = path
         self.path_database = path_database
         self.path_query = path_query
         self.col_category = col_category
         self.query_batch_size = query_batch_size
+        self.match_mode = match_mode
 
     def check_file_type(
             self,
             file_path: Path,
             mode: str = '',
-            match_mode: str = 'text_dense'
     ) -> dict:
         # check path
         file_type = file_path.suffix[1:]
@@ -36,7 +37,7 @@ class Matching:
         df = duckdb.sql(query).pl()
 
         # clean data
-        if match_mode != 'image':
+        if self.match_mode != 'image':
             df = (
                 df
                 .pipe(clean_text)
@@ -45,7 +46,7 @@ class Matching:
             )
 
         # export
-        file_path = self.path / f'{mode}_{match_mode}_clean.parquet'
+        file_path = self.path / f'{mode}_{self.match_mode}_clean.parquet'
         df.write_parquet(file_path)
 
         # status
@@ -57,13 +58,11 @@ class Matching:
 
     def run(
             self,
-            match_mode: str = 'text_dense',
             export_type: str = 'parquet',
             top_k: int = 10,
     ):
         """
         Run matching processes
-        :param match_mode: text | text_dense | image
         :param export_type: parquet | csv
         :param top_k: top k matches
         :return: json
@@ -79,9 +78,9 @@ class Matching:
 
         # Match
         be = BELargeScale(self.path, text_sparse=512)
-        if match_mode == 'image':
+        if self.match_mode == 'image':
             be = BELargeScale(self.path, img_dim=True, query_batch_size=self.query_batch_size)
-        elif match_mode == 'text_dense':
+        elif self.match_mode == 'text_dense':
             be = BELargeScale(self.path, text_dense=True)
 
         start = perf_counter()
@@ -104,7 +103,7 @@ class Matching:
             where q_{self.col_category} = '{cat}'
             """
             chunk_q = duckdb.sql(query).pl()
-            print(f'🐋 Start matching by [{match_mode}] cat: {cat} - Database shape {chunk_db.shape}, Query shape {chunk_q.shape}')
+            print(f'🐋 Start matching by [{self.match_mode}] cat: {cat} - Database shape {chunk_db.shape}, Query shape {chunk_q.shape}')
 
             # check
             if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
