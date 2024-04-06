@@ -1,6 +1,5 @@
 from pathlib import Path
 import duckdb
-import pandas as pd
 import polars as pl
 from time import perf_counter
 from .build_index.func import rm_all_folder, clean_text, make_dir
@@ -11,9 +10,9 @@ class Matching:
     def __init__(
             self,
             col_category: str,
-            path: str | Path | pl.DataFrame | pd.DataFrame,
-            path_database: str | Path = None,
-            path_query: str | Path = None,
+            path: Path,
+            path_database: Path = None,
+            path_query: Path = None,
             query_batch_size: int = 500_000,
             match_mode: str = 'text_dense',
     ):

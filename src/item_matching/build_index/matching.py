@@ -1,10 +1,6 @@
 import sys
 from pathlib import Path
-from time import perf_counter
-import numpy as np
 import polars as pl
-from autofaiss import build_index
-from datasets import Dataset, concatenate_datasets, load_from_disk
 from loguru import logger
 from .func import tfidf, make_dir
 from .model import Model
@@ -26,11 +22,16 @@ class Data:
             self,
             data: pl.DataFrame,
             pp,
+            fn_kwargs: dict,
+            col_embed: str,
             mode: str = '',
-            fn_kwargs: dict = None,
-            col_embed: str = '',
             batch_size: int = 512,
+            pp_proc=None,
+            fn_kwargs_proc: dict = None,
     ) -> dict[str, Path]:
+        from datasets import Dataset
+        import numpy as np
+
         # input
         path_tmp = {}
         for i in [f'{mode}_array', f'{mode}_ds']:
@@ -52,6 +53,8 @@ class Data:
             path_tmp_array = path_tmp[f'{mode}_array'] / f'{idx}.npy'
             path_tmp_ds = path_tmp[f'{mode}_ds'] / f'{idx}'
             # process
+            if pp_proc:
+                dataset = dataset.map(pp_proc, batched=True, batch_size=2048, fn_kwargs=fn_kwargs_proc)
             dataset = dataset.map(pp, batched=True, batch_size=batch_size, fn_kwargs=fn_kwargs)
             dataset.set_format(type='numpy', columns=[col_embed], output_all_columns=True)
             # save chunking
@@ -82,61 +85,71 @@ class BELargeScale:
             self,
             df_db: pl.DataFrame,
             df_q: pl.DataFrame,
-            col_embed: str = ''
-    ):
+            col_embed: str
+    ) -> dict:
         # tf-idf
         all_items = list(set(df_db['db_item_name_clean'].to_list() + df_q['q_item_name_clean'].to_list()))
         vectorizer = tfidf(all_items, dim=self.text_sparse)
         # transform embed
-        fn_kwargs = {'col': f'db_item_name_clean', 'vectorizer': vectorizer}
-        path_tmp_db = self.data.create_dataset(
-            df_db, mode='db', pp=self.model.pp_sparse_tfidf, fn_kwargs=fn_kwargs,
-            col_embed=col_embed, batch_size=768
-        )
-        fn_kwargs = {'col': f'q_item_name_clean', 'vectorizer': vectorizer}
-        path_tmp_q = self.data.create_dataset(
-            df_q, mode='q', pp=self.model.pp_sparse_tfidf, fn_kwargs=fn_kwargs,
-            col_embed=col_embed, batch_size=768
-        )
-        return path_tmp_db, path_tmp_q
+        dict_tmp = {}
+        for mode, data in zip(['db', 'q'], [df_db, df_q]):
+            fn_kwargs = {'col': f'{mode}_item_name_clean', 'vectorizer': vectorizer}
+            path_tmp = self.data.create_dataset(
+                data, mode=mode, pp=self.model.pp_sparse_tfidf, fn_kwargs=fn_kwargs,
+                col_embed=col_embed, batch_size=768
+            )
+            dict_tmp[mode] = path_tmp
+        return dict_tmp
 
     def transform_img(
             self,
             df_db: pl.DataFrame,
             df_q: pl.DataFrame,
-            col_embed: str = ''
-    ):
+            col_embed: str
+    ) -> dict:
+        # load model
         img_model, img_processor = self.model.get_img_model(model_id='openai/clip-vit-base-patch32')
         # transform embed
-        fn_kwargs = {'col': f'db_file_path', 'processor': img_processor, 'model': img_model}
-        path_tmp_db = self.data.create_dataset(
-            df_db, mode='db', pp=self.model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed
-        )
-        fn_kwargs = {'col': f'q_file_path', 'processor': img_processor, 'model': img_model}
-        path_tmp_q = self.data.create_dataset(
-            df_q, mode='q', pp=self.model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed
-        )
-        return path_tmp_db, path_tmp_q
+        dict_tmp = {}
+        for mode, data in zip(['db', 'q'], [df_db, df_q]):
+            # batch embed
+            fn_kwargs = {'col': f'pixel_values', 'model': img_model}
+            fn_kwargs_proc = {'col': f'{mode}_file_path', 'processor': img_processor}
+            path_tmp = self.data.create_dataset(
+                data,
+                mode=mode,
+                pp=self.model.pp_img,
+                fn_kwargs=fn_kwargs,
+                col_embed=col_embed,
+                pp_proc=self.model.pp_img_processor,
+                fn_kwargs_proc=fn_kwargs_proc,
+            )
+            dict_tmp[mode] = path_tmp
+        return dict_tmp
 
     def transform_text_dense(
             self,
             df_db: pl.DataFrame,
             df_q: pl.DataFrame,
-            col_embed: str = ''
-    ):
+            col_embed: str
+    ) -> dict:
+        # model
         text_model = self.model.get_text_model()
         # transform embed
-        fn_kwargs = {'col': f'db_item_name_clean', 'model': text_model}
-        path_tmp_db = self.data.create_dataset(
-            df_db, mode='db', pp=self.model.pp_dense, fn_kwargs=fn_kwargs, col_embed=col_embed
-        )
-        fn_kwargs = {'col': f'q_item_name_clean', 'model': text_model}
-        path_tmp_q = self.data.create_dataset(
-            df_q, mode='q', pp=self.model.pp_dense, fn_kwargs=fn_kwargs, col_embed=col_embed
-        )
-        return path_tmp_db, path_tmp_q
+        dict_tmp = {}
+        for mode, data in zip(['db', 'q'], [df_db, df_q]):
+            fn_kwargs = {'col': f'{mode}_item_name_clean', 'model': text_model}
+            path_tmp = self.data.create_dataset(
+                data, mode=mode, pp=self.model.pp_dense, fn_kwargs=fn_kwargs, col_embed=col_embed
+            )
+            dict_tmp[mode] = path_tmp
+        return dict_tmp
 
     def match(self, df_db: pl.DataFrame, df_q: pl.DataFrame, top_k: int = 10):
+        from autofaiss import build_index
+        from datasets import concatenate_datasets, load_from_disk
+        from time import perf_counter
+
         # Dataset
         path_tmp_db, path_tmp_q, col_embed = None, None, ''
         if self.text_sparse:

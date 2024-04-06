@@ -9,5 +9,6 @@ json_stats = Matching(
     col_category='level1_kpi_category',
     path=path,
     path_database=path_db,
-    path_query=path_q
-).run(match_mode='text')
+    path_query=path_q,
+    match_mode='text',
+).run()
