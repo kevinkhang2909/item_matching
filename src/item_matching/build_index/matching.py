@@ -113,16 +113,9 @@ class BELargeScale:
         dict_tmp = {}
         for mode, data in zip(['db', 'q'], [df_db, df_q]):
             # batch embed
-            fn_kwargs = {'col': f'pixel_values', 'model': img_model}
-            fn_kwargs_proc = {'col': f'{mode}_file_path', 'processor': img_processor}
+            fn_kwargs = {'col': f'{mode}_file_path', 'model': img_model, 'processor': img_processor}
             path_tmp = self.data.create_dataset(
-                data,
-                mode=mode,
-                pp=self.model.pp_img,
-                fn_kwargs=fn_kwargs,
-                col_embed=col_embed,
-                pp_proc=self.model.pp_img_processor,
-                fn_kwargs_proc=fn_kwargs_proc,
+                data, mode=mode, pp=self.model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed
             )
             dict_tmp[mode] = path_tmp
         return dict_tmp
@@ -151,27 +144,27 @@ class BELargeScale:
         from time import perf_counter
 
         # Dataset
-        path_tmp_db, path_tmp_q, col_embed = None, None, ''
+        path_tmp, col_embed = None, None
         if self.text_sparse:
             # embed col
             col_embed = 'tfidf_embed'
-            path_tmp_db, path_tmp_q = self.transform_tfidf(df_db, df_q, col_embed)
+            path_tmp = self.transform_tfidf(df_db, df_q, col_embed)
 
         elif self.img_dim:
             # embed col
             col_embed = 'img_embed'
-            path_tmp_db, path_tmp_q = self.transform_img(df_db, df_q, col_embed)
+            path_tmp = self.transform_img(df_db, df_q, col_embed)
 
         elif self.text_dense:
             col_embed = 'dense_embed'
-            path_tmp_db, path_tmp_q = self.transform_text_dense(df_db, df_q, col_embed)
+            path_tmp = self.transform_text_dense(df_db, df_q, col_embed)
 
         # Build index
         logger.info(f'[Matching] Start building index')
         start = perf_counter()
         path_index = self.path / 'index'
         build_index(
-            str(path_tmp_db['db_array']),
+            str(path_tmp['db']['db_array']),
             index_path=str(path_index / f'ip.index'),
             index_infos_path=str(path_index / f'index.json'),
             save_on_disk=True,
@@ -182,7 +175,7 @@ class BELargeScale:
 
         # Load dataset shard
         dataset_db = concatenate_datasets([
-            load_from_disk(str(f)) for f in sorted(path_tmp_db['db_ds'].glob('*'))
+            load_from_disk(str(f)) for f in sorted(path_tmp['db']['db_ds'].glob('*'))
         ])
 
         # Add index
@@ -190,7 +183,7 @@ class BELargeScale:
 
         # Dataset query shard
         dataset_q = concatenate_datasets([
-            load_from_disk(str(f)) for f in sorted(path_tmp_q['q_ds'].glob('*'))
+            load_from_disk(str(f)) for f in sorted(path_tmp['q']['q_ds'].glob('*'))
         ])
 
         # Batch query
