@@ -30,6 +30,7 @@ dependencies = [
     'polars',
     'scikit-learn',
     'FlagEmbedding',
+    'orjson',
 ]
 
 [project.urls]
