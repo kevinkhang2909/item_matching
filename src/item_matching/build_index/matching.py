@@ -163,14 +163,15 @@ class BELargeScale:
         logger.info(f'[Matching] Start building index')
         start = perf_counter()
         path_index = self.path / 'index'
-        build_index(
-            str(path_tmp['db']['db_array']),
-            index_path=str(path_index / f'ip.index'),
-            index_infos_path=str(path_index / f'index.json'),
-            save_on_disk=True,
-            metric_type='ip',
-            verbose=30,
-        )
+        if not path_index.exists():
+            build_index(
+                str(path_tmp['db']['db_array']),
+                index_path=str(path_index / f'ip.index'),
+                index_infos_path=str(path_index / f'index.json'),
+                save_on_disk=True,
+                metric_type='ip',
+                verbose=30,
+            )
         logger.info(f'[Matching] Building Index: {perf_counter() - start:,.2f}s')
 
         # Load dataset shard
