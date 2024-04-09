@@ -194,6 +194,12 @@ class BELargeScale:
         logger.info(f'[Matching] Start retrieve: num batches {num_batches}')
         start = perf_counter()
         for idx, i in enumerate(range(0, len(dataset_q), self.query_batch_size)):
+            # init
+            file_name_result = self.path_result / f'result_{idx}.parquet'
+            file_name_score = self.path_result / f'score_{idx}.parquet'
+            if file_name_result.exists():
+                continue
+
             # start
             start_batch = perf_counter()
             if i + self.query_batch_size >= len(dataset_q):
@@ -211,9 +217,9 @@ class BELargeScale:
             # export
             dict_ = {f'score_{col_embed}': [list(i) for i in score]}
             df_score = pl.DataFrame(dict_)
-            df_score.write_parquet(self.path_result / f'score_{idx}.parquet')
+            df_score.write_parquet(file_name_result)
             df_result = pl.DataFrame(result).drop([col_embed])
-            df_result.write_parquet(self.path_result / f'result_{idx}.parquet')
+            df_result.write_parquet(file_name_score)
 
             # log
             print(f"[Matching] Batch {idx}/{num_batches} match result shape: {df_result.shape} "
