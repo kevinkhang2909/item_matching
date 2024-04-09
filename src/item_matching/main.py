@@ -1,6 +1,7 @@
 from pathlib import Path
 import duckdb
 import polars as pl
+from re import search
 from time import perf_counter
 from .build_index.func import rm_all_folder, clean_text, make_dir
 from .build_index.matching import BELargeScale
@@ -114,6 +115,9 @@ class Matching:
 
             # match
             df_match = be.match(chunk_db, chunk_q, top_k=top_k)
+            if top_k < 100 and df_match.shape[0] < 5_000_000:
+                col_explode = [i for i in df_match.columns if search('db|score', i)]
+                df_match = df_match.explode(col_explode)
 
             # export
             if export_type == 'parquet':

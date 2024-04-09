@@ -144,20 +144,20 @@ class BELargeScale:
         from time import perf_counter
 
         # Dataset
-        path_tmp, col_embed = None, None
-        if self.text_sparse:
-            # embed col
-            col_embed = 'tfidf_embed'
-            path_tmp = self.transform_tfidf(df_db, df_q, col_embed)
-
-        elif self.img_dim:
-            # embed col
-            col_embed = 'img_embed'
-            path_tmp = self.transform_img(df_db, df_q, col_embed)
-
-        elif self.text_dense:
-            col_embed = 'dense_embed'
-            path_tmp = self.transform_text_dense(df_db, df_q, col_embed)
+        col_embed = 'tfidf_embed' if self.text_sparse else 'img_embed' if self.img_dim else 'dense_embed'
+        path_tmp = {
+            'db': {'db_array': self.path / 'db_array', 'db_ds': self.path / 'db_ds'},
+            'q': {'q_array': self.path / 'q_array', 'q_ds': self.path / 'q_ds'},
+        }
+        transform_dict = {
+            'tfidf_embed': self.transform_tfidf,
+            'img_embed': self.transform_img,
+            'dense_embed': self.transform_text_dense,
+        }
+        if not path_tmp['db'][f'db_array'].exists():
+            path_tmp = transform_dict[col_embed](df_db, df_q, col_embed)
+        else:
+            logger.info(f'[Matching] Dataset is existed')
 
         # Build index
         logger.info(f'[Matching] Start building index')
@@ -194,6 +194,8 @@ class BELargeScale:
         logger.info(f'[Matching] Start retrieve: num batches {num_batches}')
         start = perf_counter()
         for idx, i in enumerate(range(0, len(dataset_q), self.query_batch_size)):
+            # start
+            start_batch = perf_counter()
             if i + self.query_batch_size >= len(dataset_q):
                 batched_queries = dataset_q[i:]
             else:
@@ -206,14 +208,16 @@ class BELargeScale:
                 k=top_k
             )
 
+            # export
             dict_ = {f'score_{col_embed}': [list(i) for i in score]}
             df_score = pl.DataFrame(dict_)
             df_score.write_parquet(self.path_result / f'score_{idx}.parquet')
-
             df_result = pl.DataFrame(result).drop([col_embed])
-            print(f'[Matching] Batch {idx}/{num_batches} match result shape: {df_result.shape}')
             df_result.write_parquet(self.path_result / f'result_{idx}.parquet')
 
+            # log
+            print(f"[Matching] Batch {idx}/{num_batches} match result shape: {df_result.shape} "
+                  f"{perf_counter() - start_batch:,.2f}s")
             del score, result, df_score, df_result
         logger.info(f'[Matching] Retrieve: {perf_counter() - start:,.2f}s')
 
@@ -225,7 +229,5 @@ class BELargeScale:
             pl.concat([pl.read_parquet(f) for f in sorted(self.path_result.glob('result*.parquet'))])
         )
         df_match = pl.concat([df_q, df_result, df_score], how='horizontal')
-        col_explode = [i for i in df_match.columns if 'db' in i] + [f'score_{col_embed}']
-        df_match = df_match.explode(col_explode)
 
         return df_match
