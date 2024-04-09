@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import polars as pl
 from loguru import logger
+from re import search
 from .func import tfidf, make_dir
 from .model import Model
 
@@ -236,5 +237,7 @@ class BELargeScale:
             pl.concat([pl.read_parquet(f) for f in sorted(self.path_result.glob('result*.parquet'))])
         )
         df_match = pl.concat([df_q, df_result, df_score], how='horizontal')
+        col_explode = [i for i in df_match.columns if search('db|score', i)]
+        df_match = df_match.explode(col_explode)
 
         return df_match
