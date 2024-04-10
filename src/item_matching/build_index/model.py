@@ -14,11 +14,22 @@ class Model:
         self.device = device
         logger.info(f'[Model] Run on: {self.device}')
 
-    def get_img_model(self, model_id: str = 'openai/clip-vit-base-patch32'):
-        from transformers import AutoProcessor, CLIPVisionModel
+    def get_img_model(self, model_id: str = 'google/siglip-base-patch16-224'):
+        """
+        Get Image Model
+        :param model_id: openai/clip-vit-base-patch32 | google/siglip-base-patch16-224
+        :return:
+        """
+        if model_id == 'google/siglip-base-patch16-224':
+            from transformers import AutoProcessor, SiglipVisionModel
 
-        img_processor = AutoProcessor.from_pretrained(model_id)
-        img_model = CLIPVisionModel.from_pretrained(model_id).to(self.device)
+            img_processor = AutoProcessor.from_pretrained(model_id)
+            img_model = SiglipVisionModel.from_pretrained(model_id).to(self.device)
+        else:
+            from transformers import AutoProcessor, CLIPVisionModel
+
+            img_processor = AutoProcessor.from_pretrained(model_id)
+            img_model = CLIPVisionModel.from_pretrained(model_id).to(self.device)
         logger.info(f'Image model: {model_id}')
         return img_model, img_processor
 
