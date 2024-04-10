@@ -27,8 +27,6 @@ class Data:
             col_embed: str,
             mode: str = '',
             batch_size: int = 512,
-            pp_proc=None,
-            fn_kwargs_proc: dict = None,
     ) -> dict[str, Path]:
         from datasets import Dataset
         import numpy as np
@@ -54,8 +52,6 @@ class Data:
             path_tmp_array = path_tmp[f'{mode}_array'] / f'{idx}.npy'
             path_tmp_ds = path_tmp[f'{mode}_ds'] / f'{idx}'
             # process
-            if pp_proc:
-                dataset = dataset.map(pp_proc, batched=True, batch_size=2048, fn_kwargs=fn_kwargs_proc)
             dataset = dataset.map(pp, batched=True, batch_size=batch_size, fn_kwargs=fn_kwargs)
             dataset.set_format(type='numpy', columns=[col_embed], output_all_columns=True)
             # save chunking
@@ -116,7 +112,7 @@ class BELargeScale:
             # batch embed
             fn_kwargs = {'col': f'{mode}_file_path', 'model': img_model, 'processor': img_processor}
             path_tmp = self.data.create_dataset(
-                data, mode=mode, pp=self.model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed
+                data, mode=mode, pp=self.model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed, batch_size=512
             )
             dict_tmp[mode] = path_tmp
         return dict_tmp

@@ -85,7 +85,8 @@ class Matching:
         start = perf_counter()
         path_match_result = self.path / 'result_match'
         make_dir(path_match_result)
-        for cat in json_stats['q_col_category']:
+        num_cat = len(json_stats['q_col_category'])
+        for idx, cat in enumerate(json_stats['q_col_category']):
             # filter cat
             file_name = path_match_result / f'{cat}.{export_type}'
 
@@ -102,7 +103,8 @@ class Matching:
             where q_{self.col_category} = '{cat}'
             """
             chunk_q = duckdb.sql(query).pl()
-            print(f'🐋 Start matching by [{self.match_mode}] cat: {cat} - Database shape {chunk_db.shape}, Query shape {chunk_q.shape}')
+            print(f"🐋 Start matching by [{self.match_mode}] cat: {cat} {idx}/{num_cat} - "
+                  f"Database shape {chunk_db.shape}, Query shape {chunk_q.shape}")
 
             # check
             if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
