@@ -8,7 +8,7 @@ def clean_text(data, col: str = 'item_name') -> pl.DataFrame:
     regex = "[\(\[\<\"].*?[\)\]\>\"]"
     return data.with_columns(
         pl.col(col).map_elements(
-            lambda x: re.sub(regex, "", x).lower().rstrip('.').strip()
+            lambda x: re.sub(regex, "", x).lower().rstrip('.').strip(), return_dtype=pl.String
         )
         .alias(f'{col.lower()}_clean')
     )
