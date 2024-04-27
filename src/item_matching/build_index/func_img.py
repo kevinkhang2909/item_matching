@@ -5,7 +5,7 @@ from core_pro.ultilities import make_dir
 import sys
 from loguru import logger
 from tqdm import tqdm
-from item_matching.build_index.func import clean_text
+from .func import PipelineText
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
@@ -86,7 +86,7 @@ class PipelineImage:
         # join
         data = (
             df.drop(['images'])
-            .pipe(clean_text)
+            .pipe(PipelineText.clean_text)
             .select(pl.all().name.prefix(f'{mode}_'))
             .join(data_img, on=f'{mode}_{self.col_image}', how='left')
             .filter(pl.col(f'{mode}_exists'))

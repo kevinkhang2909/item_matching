@@ -2,7 +2,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 from time import perf_counter
-from .build_index.func import rm_all_folder, clean_text, make_dir
+from .build_index.func import rm_all_folder, PipelineText, make_dir
 from .build_index.matching import BELargeScale
 
 
@@ -39,7 +39,7 @@ class Matching:
         if self.match_mode != 'image':
             df = (
                 df
-                .pipe(clean_text)
+                .pipe(PipelineText.clean_text)
                 .select(pl.all().name.prefix(f'{mode}_'))
                 .drop_nulls()
             )
