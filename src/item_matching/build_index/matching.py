@@ -5,58 +5,49 @@ from loguru import logger
 from re import search
 from .func import tfidf, make_dir
 from .model import Model
+from datasets import Dataset
+import numpy as np
+from autofaiss import build_index
+from datasets import concatenate_datasets, load_from_disk
+from time import perf_counter
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
 
 
 class Data:
-    def __init__(
-            self,
-            path: Path,
-            shard_size: int = 1_500_000
-    ):
+    def __init__(self, path: Path, shard_size: int = 1_500_000):
         self.path = path
         self.shard_size = shard_size
 
-    def create_dataset(
-            self,
-            data: pl.DataFrame,
-            pp,
-            fn_kwargs: dict,
-            col_embed: str,
-            mode: str = '',
-            batch_size: int = 512,
-    ) -> dict[str, Path]:
-        from datasets import Dataset
-        import numpy as np
+    def create_dataset(self, data: pl.DataFrame, pp, fn_kwargs: dict, col_embed: str, mode: str = '', batch_size: int = 256) -> dict[str, Path]:
+        # Create directories
+        path_array = self.path / f'{mode}_array'
+        path_ds = self.path / f'{mode}_ds'
+        path_array.mkdir(parents=True, exist_ok=True)
+        path_ds.mkdir(parents=True, exist_ok=True)
 
-        # input
-        path_tmp = {}
-        for i in [f'{mode}_array', f'{mode}_ds']:
-            path_tmp.update({i: self.path / i})
-            make_dir(path_tmp[i])
+        # Initialize paths
+        path_tmp = {f'{mode}_array': path_array, f'{mode}_ds': path_ds}
 
-        # batch save embeddings
+        # Log total chunks
         total_sample = len(data)
-        num_chunks = total_sample // self.shard_size + 1
+        num_chunks = (total_sample + self.shard_size - 1) // self.shard_size
         logger.info(f'[Dataset] Total chunks {mode}: {num_chunks} - Shard size: {self.shard_size}')
 
-        for idx, b in enumerate(range(0, total_sample, self.shard_size)):
-            # chunking
-            if b + self.shard_size >= total_sample:
-                dataset = Dataset.from_pandas(data[b:].to_pandas())
-            else:
-                dataset = Dataset.from_pandas(data[b:b + self.shard_size].to_pandas())
-            # path
-            path_tmp_array = path_tmp[f'{mode}_array'] / f'{idx}.npy'
-            path_tmp_ds = path_tmp[f'{mode}_ds'] / f'{idx}'
-            # process
-            dataset = dataset.map(pp, batched=True, batch_size=batch_size, fn_kwargs=fn_kwargs)
-            dataset.set_format(type='numpy', columns=[col_embed], output_all_columns=True)
-            # save chunking
-            np.save(path_tmp_array, dataset[col_embed])
-            dataset.save_to_disk(path_tmp_ds)
+        # Process and save each chunk
+        for idx in range(num_chunks):
+            start_idx = idx * self.shard_size
+            end_idx = min(start_idx + self.shard_size, total_sample)
+            dataset_chunk = Dataset.from_pandas(data[start_idx:end_idx].to_pandas())
+
+            # Process dataset
+            dataset_chunk = dataset_chunk.map(pp, batched=True, batch_size=batch_size, fn_kwargs=fn_kwargs)
+            dataset_chunk.set_format(type='numpy', columns=[col_embed], output_all_columns=True)
+
+            # Save chunk
+            np.save(path_array / f'{idx}.npy', dataset_chunk[col_embed])
+            dataset_chunk.save_to_disk(str(path_ds / f'{idx}'))
 
         return path_tmp
 
@@ -78,26 +69,6 @@ class BELargeScale:
         self.model = Model()
         self.query_batch_size = query_batch_size
 
-    def transform_tfidf(
-            self,
-            df_db: pl.DataFrame,
-            df_q: pl.DataFrame,
-            col_embed: str
-    ) -> dict:
-        # tf-idf
-        all_items = list(set(df_db['db_item_name_clean'].to_list() + df_q['q_item_name_clean'].to_list()))
-        vectorizer = tfidf(all_items, dim=self.text_sparse)
-        # transform embed
-        dict_tmp = {}
-        for mode, data in zip(['db', 'q'], [df_db, df_q]):
-            fn_kwargs = {'col': f'{mode}_item_name_clean', 'vectorizer': vectorizer}
-            path_tmp = self.data.create_dataset(
-                data, mode=mode, pp=self.model.pp_sparse_tfidf, fn_kwargs=fn_kwargs,
-                col_embed=col_embed, batch_size=768
-            )
-            dict_tmp[mode] = path_tmp
-        return dict_tmp
-
     def transform_img(
             self,
             df_db: pl.DataFrame,
@@ -105,14 +76,14 @@ class BELargeScale:
             col_embed: str
     ) -> dict:
         # load model
-        img_model, img_processor = self.model.get_img_model(model_id='openai/clip-vit-base-patch32')
+        img_model, img_processor = self.model.get_img_model()
         # transform embed
         dict_tmp = {}
         for mode, data in zip(['db', 'q'], [df_db, df_q]):
             # batch embed
             fn_kwargs = {'col': f'{mode}_file_path', 'model': img_model, 'processor': img_processor}
             path_tmp = self.data.create_dataset(
-                data, mode=mode, pp=self.model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed, batch_size=512
+                data, mode=mode, pp=self.model.pp_img, fn_kwargs=fn_kwargs, col_embed=col_embed, batch_size=128
             )
             dict_tmp[mode] = path_tmp
         return dict_tmp
@@ -136,18 +107,13 @@ class BELargeScale:
         return dict_tmp
 
     def match(self, df_db: pl.DataFrame, df_q: pl.DataFrame, top_k: int = 10):
-        from autofaiss import build_index
-        from datasets import concatenate_datasets, load_from_disk
-        from time import perf_counter
-
         # Dataset
-        col_embed = 'tfidf_embed' if self.text_sparse else 'img_embed' if self.img_dim else 'dense_embed'
+        col_embed = 'img_embed' if self.img_dim else 'dense_embed'
         path_tmp = {
             'db': {'db_array': self.path / 'db_array', 'db_ds': self.path / 'db_ds'},
             'q': {'q_array': self.path / 'q_array', 'q_ds': self.path / 'q_ds'},
         }
         transform_dict = {
-            'tfidf_embed': self.transform_tfidf,
             'img_embed': self.transform_img,
             'dense_embed': self.transform_text_dense,
         }
@@ -211,13 +177,12 @@ class BELargeScale:
                 batched_queries[col_embed],
                 k=top_k
             )
-
             # export
             dict_ = {f'score_{col_embed}': [list(i) for i in score]}
             df_score = pl.DataFrame(dict_)
-            df_score.write_parquet(file_name_result)
+            df_score.write_parquet(file_name_score)
             df_result = pl.DataFrame(result).drop([col_embed])
-            df_result.write_parquet(file_name_score)
+            df_result.write_parquet(file_name_result)
 
             # log
             print(f"[Matching] Batch {idx}/{num_batches} match result shape: {df_result.shape} "

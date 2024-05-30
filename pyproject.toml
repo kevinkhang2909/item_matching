@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "item_matching"
-version = "0.0.30"
+version = "0.0.32"
 authors = [
   { name="Kevin Khang", email="kevinkhang2909@gmail.com" },
 ]
@@ -31,6 +31,7 @@ dependencies = [
     'scikit-learn',
     'FlagEmbedding',
     'orjson',
+    'sentencepiece',
 ]
 
 [project.urls]

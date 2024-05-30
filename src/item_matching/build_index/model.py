@@ -3,6 +3,8 @@ from loguru import logger
 import sys
 from PIL import Image
 from torch.nn import functional as F
+from transformers import AutoProcessor, SiglipVisionModel
+from FlagEmbedding import BGEM3FlagModel
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
@@ -20,22 +22,12 @@ class Model:
         :param model_id: openai/clip-vit-base-patch32 | google/siglip-base-patch16-224
         :return:
         """
-        if model_id == 'google/siglip-base-patch16-224':
-            from transformers import AutoProcessor, SiglipVisionModel
-
-            img_processor = AutoProcessor.from_pretrained(model_id)
-            img_model = SiglipVisionModel.from_pretrained(model_id).to(self.device)
-        else:
-            from transformers import AutoProcessor, CLIPVisionModel
-
-            img_processor = AutoProcessor.from_pretrained(model_id)
-            img_model = CLIPVisionModel.from_pretrained(model_id).to(self.device)
+        img_processor = AutoProcessor.from_pretrained(model_id)
+        img_model = SiglipVisionModel.from_pretrained(model_id).to(self.device)
         logger.info(f'Image model: {model_id}')
         return img_model, img_processor
 
     def get_text_model(self, model_id: str = 'BAAI/bge-m3'):
-        from FlagEmbedding import BGEM3FlagModel
-
         model = BGEM3FlagModel(model_id, use_fp16=True)
         return model
 
