@@ -76,10 +76,9 @@ class Matching:
         json_stats.update(status)
 
         # Match
-        be = BELargeScale(self.path, text_sparse=512)
         if self.match_mode == 'image':
             be = BELargeScale(self.path, img_dim=True, query_batch_size=self.query_batch_size)
-        elif self.match_mode == 'text_dense':
+        else:
             be = BELargeScale(self.path, text_dense=True)
 
         start = perf_counter()
