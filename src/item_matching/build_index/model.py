@@ -16,25 +16,19 @@ class Model:
         self.device = device
         logger.info(f'[Model] Run on: {self.device}')
 
-    def get_img_model(self, model_id: str = 'google/siglip-base-patch16-224'):
-        """
-        Get Image Model
-        :param model_id: google/siglip-base-patch16-224
-        :return:
-        """
+    def get_img_model(self):
+        """Get Image Model"""
+        model_id = 'google/siglip-base-patch16-224'
         img_processor = AutoProcessor.from_pretrained(model_id)
         img_model = SiglipVisionModel.from_pretrained(model_id).to(self.device)
         logger.info(f'Image model: {model_id}')
         return img_model, img_processor
 
-    def get_text_model(self, model_id: str = 'BAAI/bge-m3'):
+    def get_text_model(self):
+        model_id = 'BAAI/bge-m3'
         model = BGEM3FlagModel(model_id, use_fp16=True)
+        logger.info(f'Text model: {model_id}')
         return model
-
-    @staticmethod
-    def pp_sparse_tfidf(batch, vectorizer, col: str) -> dict:
-        embeddings = vectorizer.transform(batch[col]).toarray()
-        return {'tfidf_embed': embeddings}
 
     @staticmethod
     def pp_img(batch, model, processor, col: str) -> dict:

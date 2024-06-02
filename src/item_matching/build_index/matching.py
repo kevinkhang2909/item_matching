@@ -23,8 +23,8 @@ class Data:
         # Create directories
         path_array = self.path / f'{mode}_array'
         path_ds = self.path / f'{mode}_ds'
-        path_array.mkdir(parents=True, exist_ok=True)
-        path_ds.mkdir(parents=True, exist_ok=True)
+        make_dir(path_array)
+        make_dir(path_ds)
 
         # Initialize paths
         path_tmp = {f'{mode}_array': path_array, f'{mode}_ds': path_ds}

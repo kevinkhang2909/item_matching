@@ -1,8 +1,7 @@
 from pathlib import Path
 import duckdb
-import polars as pl
 from time import perf_counter
-from .build_index.func import rm_all_folder, PipelineText, make_dir
+from .build_index.func import rm_all_folder, make_dir
 from .build_index.matching import BELargeScale
 
 
@@ -23,38 +22,6 @@ class Matching:
         self.query_batch_size = query_batch_size
         self.match_mode = match_mode
 
-    def check_file_type(
-            self,
-            file_path: Path,
-            mode: str = '',
-    ) -> dict:
-        # check path
-        file_type = file_path.suffix[1:]
-
-        # read duckdb
-        query = f"""select * from read_{file_type}('{file_path}')"""
-        df = duckdb.sql(query).pl()
-
-        # clean data
-        if self.match_mode != 'image':
-            df = (
-                df
-                .pipe(PipelineText.clean_text)
-                .select(pl.all().name.prefix(f'{mode}_'))
-                .drop_nulls()
-            )
-
-        # export
-        file_path = self.path / f'{mode}_{self.match_mode}_clean.parquet'
-        df.write_parquet(file_path)
-
-        # status
-        return {
-            f'{mode}_file_clean_path': file_path,
-            f'{mode}_data_shape': df.shape[0],
-            f'{mode}_col_category': sorted(df[f'{mode}_{self.col_category}'].unique())
-        }
-
     def run(
             self,
             export_type: str = 'parquet',
@@ -66,42 +33,37 @@ class Matching:
         :param top_k: top k matches
         :return: json
         """
-        # init
-        json_stats = {}
-
-        # read file
-        status = self.check_file_type(file_path=self.path_database, mode='db')
-        json_stats.update(status)
-        status = self.check_file_type(file_path=self.path_query, mode='q')
-        json_stats.update(status)
+        # read query file to extract category
+        query = f"""select distinct q_{self.col_category} as category from read_parquet('{self.path_query}')"""
+        lst_category = duckdb.sql(query).pl()['category'][0]
 
         # Match
         be = BELargeScale(self.path, text_dense=True)
         if self.match_mode == 'image':
             be = BELargeScale(self.path, img_dim=True, query_batch_size=self.query_batch_size)
 
-        start = perf_counter()
         path_match_result = self.path / 'result_match'
         make_dir(path_match_result)
-        num_cat = len(json_stats['q_col_category'])
-        for idx, cat in enumerate(json_stats['q_col_category']):
+        start = perf_counter()
+        # Run
+        for idx, cat in enumerate(lst_category):
             # filter cat
             file_name = path_match_result / f'{cat}.{export_type}'
 
             # read chunk cat
             query = f"""
             select * 
-            from read_parquet('{json_stats[f'db_file_clean_path']}') 
+            from read_parquet('{self.path_database}') 
             where db_{self.col_category} = '{cat}'
             """
             chunk_db = duckdb.sql(query).pl()
             query = f"""
             select * 
-            from read_parquet('{json_stats[f'q_file_clean_path']}') 
+            from read_parquet('{self.path_query}') 
             where q_{self.col_category} = '{cat}'
             """
             chunk_q = duckdb.sql(query).pl()
-            print(f"🐋 Start matching by [{self.match_mode}] cat: {cat} {idx}/{num_cat} - "
+            print(f"🐋 Start matching by [{self.match_mode}] cat: {cat} {idx}/{len(lst_category)} - "
                   f"Database shape {chunk_db.shape}, Query shape {chunk_q.shape}")
 
             # check
@@ -130,6 +92,6 @@ class Matching:
 
         # update log
         time_perf = perf_counter() - start
-        json_stats.update({'time_perf': time_perf, 'path result': path_match_result})
+        json_stats = {'time_perf': time_perf, 'path result': path_match_result}
         print(f'🐋 Your files are ready, please find here: {self.path}')
         return json_stats

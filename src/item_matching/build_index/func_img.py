@@ -1,9 +1,12 @@
 from pathlib import Path
 import polars as pl
 import duckdb
+import orjson
+from tqdm import tqdm
+import subprocess
+import os
 import sys
 from loguru import logger
-from tqdm import tqdm
 from .func import PipelineText, make_dir
 
 logger.remove()
@@ -15,43 +18,42 @@ class PipelineImage:
             self,
             path: Path,
             col_image: str = 'image_url',
+            mode: str = ''
     ):
         self.path_image = path / 'download_img'
         self.col_image = col_image
+        self.mode = mode
 
         # init path image
         make_dir(self.path_image)
 
-    def download_images(self, file_name: str):
-        import os
-        import subprocess
+    def download_images(self):
+        folder = self.path_image / f'img_{self.mode}'
+        if not folder.exists():
+            os.chdir(str(self.path_image))
+            command = (
+                f"img2dataset --url_list={self.mode}_0.parquet "
+                f"--output_folder=img_{self.mode}/ "
+                f"--processes_count=16 "
+                f"--thread_count=32 "
+                f"--image_size=224 "
+                f"--output_format=files "
+                f"--input_format=parquet "
+                f"--url_col={self.col_image} "
+                f"--number_sample_per_shard=50000 "
+            )
+            subprocess.run(command, shell=True)
 
-        os.chdir(str(self.path_image))
-        command = (
-            f"img2dataset --url_list={file_name}_0.parquet "
-            f"--output_folder=img_{file_name}/ "
-            f"--processes_count=16 "
-            f"--thread_count=32 "
-            f"--image_size=224 "
-            f"--output_format=files "
-            f"--input_format=parquet "
-            f"--url_col={self.col_image} "
-            f"--number_sample_per_shard=50000 "
-        )
-        subprocess.run(command, shell=True)
-
-    def load_images(self, mode: str = '') -> pl.DataFrame:
-        import orjson
-
+    def load_images(self) -> pl.DataFrame:
         # listing
-        path = self.path_image / f'img_{mode}'
+        path = self.path_image / f'img_{self.mode}'
         lst_json = sorted(path.glob('*/*.json'))
         lst_file = [orjson.loads(open(str(i), "r").read())['url'] for i in tqdm(lst_json, desc='Loading json in folder')]
         lst_img = [str(i) for i in tqdm(sorted(path.glob('*/*.jpg')), desc='Loading jpg in folder')]
         df = pl.DataFrame({
-            f'{mode}_{self.col_image}': lst_file,
-            f'{mode}_file_path': lst_img,
-            f'{mode}_exists': [True] * len(lst_file),
+            f'{self.mode}_{self.col_image}': lst_file,
+            f'{self.mode}_file_path': lst_img,
+            f'{self.mode}_exists': [True] * len(lst_file),
         })
 
         logger.info(f'[Data] Load Images: {df.shape}')
@@ -60,7 +62,6 @@ class PipelineImage:
     def run(
             self,
             data,
-            mode: str = '',
             download: bool = False,
             edit_img_url: bool = True,
     ):
@@ -72,23 +73,23 @@ class PipelineImage:
         # load data
         query = f"""select *, {col_query} from data"""
         df = duckdb.sql(query).pl()
-        logger.info(f'[Data] Base Data: {df.shape}')
+        logger.info(f'[Data] Base Data {self.mode}: {df.shape}')
 
         # download
         if download:
-            df.write_parquet(self.path_image / f'{mode}_0.parquet')
-            self.download_images(mode)
+            df.write_parquet(self.path_image / f'{self.mode}_0.parquet')
+            self.download_images()
 
         # load data image
-        data_img = self.load_images(mode)
+        data_img = self.load_images()
 
         # join
         data = (
             df.drop(['images'])
             .pipe(PipelineText.clean_text)
-            .select(pl.all().name.prefix(f'{mode}_'))
-            .join(data_img, on=f'{mode}_{self.col_image}', how='left')
-            .filter(pl.col(f'{mode}_exists'))
+            .select(pl.all().name.prefix(f'{self.mode}_'))
+            .join(data_img, on=f'{self.mode}_{self.col_image}', how='left')
+            .filter(pl.col(f'{self.mode}_exists'))
         )
-        logger.info(f'[Data] Join Images: {data.shape}')
+        logger.info(f'[Data] Join Images {self.mode}: {data.shape}')
         return data, data_img

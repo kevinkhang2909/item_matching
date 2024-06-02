@@ -1,12 +1,20 @@
 from pathlib import Path
 import polars as pl
+import duckdb
+import sys
+import re
+from loguru import logger
+
+logger.remove()
+logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
 
 
 class PipelineText:
+    def __init__(self, mode: str = ''):
+        self.mode = mode
+
     @staticmethod
     def clean_text(data: pl.DataFrame, col: str = 'item_name') -> pl.DataFrame:
-        import re
-
         regex = "[\(\[\<\"].*?[\)\]\>\"]"
         return data.with_columns(
             pl.col(col).map_elements(
@@ -15,18 +23,20 @@ class PipelineText:
             .alias(f'{col.lower()}_clean')
         )
 
+    def run(self, data):
+        # load data
+        query = f"""select * from data"""
+        df = duckdb.sql(query).pl()
+        logger.info(f'[Data] Base Data {self.mode}: {df.shape}')
 
-def ngrams_func(string: str):
-    ngrams = zip(*[string[i:] for i in range(3)])
-    return [''.join(ngram) for ngram in ngrams]
-
-
-def tfidf(lst_item: list, dim: int = 512):
-    from sklearn.feature_extraction.text import TfidfVectorizer
-
-    vectorizer = TfidfVectorizer(analyzer=ngrams_func, max_features=dim)
-    vectorizer.fit(lst_item)
-    return vectorizer
+        df = (
+            df
+            .pipe(PipelineText.clean_text)
+            .select(pl.all().name.prefix(f'{self.mode}_'))
+            .drop_nulls()
+        )
+        logger.info(f'[Data] Join Images {self.mode}: {df.shape}')
+        return df
 
 
 def rm_all_folder(path: Path) -> None:
@@ -39,7 +49,7 @@ def rm_all_folder(path: Path) -> None:
 
 
 def make_dir(folder_name: str | Path) -> None:
-    """Make a directory if it doesn't exist'"""
+    """Make a directory if it doesn't exist"""
     if isinstance(folder_name, str):
         folder_name = Path(folder_name)
     if not folder_name.exists():
