@@ -1,15 +1,14 @@
-import sys
 from pathlib import Path
-import polars as pl
-from loguru import logger
-from re import search
-from .func import tfidf, make_dir
-from .model import Model
-from datasets import Dataset
 import numpy as np
-from autofaiss import build_index
-from datasets import concatenate_datasets, load_from_disk
+import polars as pl
 from time import perf_counter
+from re import search
+from autofaiss import build_index
+from datasets import concatenate_datasets, load_from_disk, Dataset
+from .func import make_dir
+from .model import Model
+import sys
+from loguru import logger
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
@@ -56,12 +55,10 @@ class BELargeScale:
     def __init__(
             self,
             path: Path,
-            text_sparse: int = None,
             img_dim: bool = False,
             text_dense: bool = False,
             query_batch_size: int = 500_000
     ):
-        self.text_sparse = text_sparse
         self.img_dim = img_dim
         self.text_dense = text_dense
         self.path = path

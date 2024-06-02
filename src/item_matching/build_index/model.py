@@ -19,7 +19,7 @@ class Model:
     def get_img_model(self, model_id: str = 'google/siglip-base-patch16-224'):
         """
         Get Image Model
-        :param model_id: openai/clip-vit-base-patch32 | google/siglip-base-patch16-224
+        :param model_id: google/siglip-base-patch16-224
         :return:
         """
         img_processor = AutoProcessor.from_pretrained(model_id)

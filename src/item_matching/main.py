@@ -76,10 +76,9 @@ class Matching:
         json_stats.update(status)
 
         # Match
+        be = BELargeScale(self.path, text_dense=True)
         if self.match_mode == 'image':
             be = BELargeScale(self.path, img_dim=True, query_batch_size=self.query_batch_size)
-        else:
-            be = BELargeScale(self.path, text_dense=True)
 
         start = perf_counter()
         path_match_result = self.path / 'result_match'
@@ -119,7 +118,7 @@ class Matching:
             # export
             if export_type == 'parquet':
                 df_match.write_parquet(file_name)
-            elif export_type == 'csv':
+            else:
                 df_match.write_csv(file_name)
 
             # remove caches

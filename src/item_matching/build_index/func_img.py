@@ -1,11 +1,10 @@
 from pathlib import Path
-import pandas as pd
 import polars as pl
-from core_pro.ultilities import make_dir
+import duckdb
 import sys
 from loguru import logger
 from tqdm import tqdm
-from .func import PipelineText
+from .func import PipelineText, make_dir
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
@@ -60,18 +59,18 @@ class PipelineImage:
 
     def run(
             self,
-            data: pl.DataFrame | pd.DataFrame,
+            data,
             mode: str = '',
             download: bool = False,
+            edit_img_url: bool = True,
     ):
-        import duckdb
+        # edit url
+        col_query = f"images {self.col_image}"
+        if edit_img_url:
+            col_query = f",concat('http://f.shopee.vn/file/', UNNEST(array_slice(string_split(images, ','), 1, 1))) {self.col_image}"
 
         # load data
-        query = f"""
-        select *
-        ,concat('http://f.shopee.vn/file/', UNNEST(array_slice(string_split(images, ','), 1, 1))) {self.col_image}
-        from data
-        """
+        query = f"""select *, {col_query} from data"""
         df = duckdb.sql(query).pl()
         logger.info(f'[Data] Base Data: {df.shape}')
 
