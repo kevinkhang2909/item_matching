@@ -66,9 +66,9 @@ class PipelineImage:
             edit_img_url: bool = True,
     ):
         # edit url
-        col_query = f"images {self.col_image}"
+        col_query = f",concat('http://f.shopee.vn/file/', UNNEST(array_slice(string_split(images, ','), 1, 1))) {self.col_image}"
         if edit_img_url:
-            col_query = f",concat('http://f.shopee.vn/file/', UNNEST(array_slice(string_split(images, ','), 1, 1))) {self.col_image}"
+            col_query = f"images {self.col_image}"
 
         # load data
         query = f"""select *, {col_query} from data"""

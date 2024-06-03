@@ -1,5 +1,6 @@
 from pathlib import Path
 import duckdb
+import re
 from time import perf_counter
 from .build_index.func import rm_all_folder, make_dir
 from .build_index.matching import BELargeScale
@@ -35,7 +36,7 @@ class Matching:
         """
         # read query file to extract category
         query = f"""select distinct q_{self.col_category} as category from read_parquet('{self.path_query}')"""
-        lst_category = duckdb.sql(query).pl()['category'][0]
+        lst_category = duckdb.sql(query).pl()['category'].to_list()
 
         # Match
         be = BELargeScale(self.path, text_dense=True)
@@ -47,9 +48,6 @@ class Matching:
         start = perf_counter()
         # Run
         for idx, cat in enumerate(lst_category):
-            # filter cat
-            file_name = path_match_result / f'{cat}.{export_type}'
-
             # read chunk cat
             query = f"""
             select * 
@@ -70,7 +68,10 @@ class Matching:
             if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
                 print(f'Database/Query have no data')
                 continue
-            elif file_name.exists():
+
+            cat = re.sub('/', '', cat)
+            file_name = path_match_result / f'{cat}.{export_type}'
+            if file_name.exists():
                 print(f'File already exists: {file_name}')
                 continue
 
