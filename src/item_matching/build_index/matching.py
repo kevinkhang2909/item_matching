@@ -38,7 +38,8 @@ class Data:
         for idx in range(num_chunks):
             start_idx = idx * self.shard_size
             end_idx = min(start_idx + self.shard_size, total_sample)
-            dataset_chunk = Dataset.from_pandas(data[start_idx:end_idx].to_pandas())
+            # dataset_chunk = Dataset.from_pandas(data[start_idx:end_idx].to_pandas())
+            dataset_chunk = Dataset.from_polars(data[start_idx:end_idx])
 
             # Process dataset
             dataset_chunk = dataset_chunk.map(pp, batched=True, batch_size=batch_size, fn_kwargs=fn_kwargs)
