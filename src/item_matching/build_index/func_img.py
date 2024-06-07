@@ -83,6 +83,11 @@ class PipelineImage:
         # load data image
         data_img = self.load_images()
 
+        # errors image
+        if data_img.shape[0] == 0:
+            logger.info(f'[Data] Images Errors {self.mode}: {data.shape}')
+            return data, data_img
+
         # join
         data = (
             df.drop(['images'])
