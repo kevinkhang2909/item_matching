@@ -6,7 +6,10 @@ from tqdm import tqdm
 import subprocess
 import os
 import sys
+import requests
 from loguru import logger
+from concurrent.futures import ThreadPoolExecutor
+from PIL import Image
 from .func import PipelineText, make_dir
 
 logger.remove()
@@ -27,7 +30,44 @@ class PipelineImage:
         # init path image
         make_dir(self.path_image)
 
-    def download_images(self):
+    def download_images_request(self):
+        def _download(arr: dict):
+            # init
+            url = arr['url']
+            idx = arr['index']
+
+            # get
+            response = requests.get(url, stream=True)
+
+            # path
+            path_img = folder / f'{idx}.png'
+            path_json = folder / f'{idx}.json'
+
+            # resize and log json
+            if not path_img.exists():
+                with Image.open(response.raw) as img:
+                    img.resize((224, 224))
+                    img.save(str(path_img))
+
+                json_object = orjson.dumps(arr, option=orjson.OPT_INDENT_2).decode("utf-8")
+                with open(str(path_json), 'w') as outfile:
+                    outfile.write(json_object)
+
+        # read data
+        folder = self.path_image / f'img_{self.mode}/00000'
+        if not folder.exists():
+            query = f"""select * from read_parquet('{self.path_image}/{self.mode}_0.parquet')"""
+            df = (
+                duckdb.sql(query).pl()
+                .rename({self.col_image: 'url'})
+                .with_row_index()
+            )
+            # run
+            run = df.to_dicts()
+            with ThreadPoolExecutor() as executor:
+                list(tqdm(executor.map(_download, run), total=len(run)))
+
+    def download_images_img2dataset(self):
         folder = self.path_image / f'img_{self.mode}'
         if not folder.exists():
             os.chdir(str(self.path_image))
@@ -63,6 +103,7 @@ class PipelineImage:
             self,
             data,
             download: bool = False,
+            download_mode : str = 'img2dataset',
             edit_img_url: bool = True,
     ):
         # edit url
@@ -73,12 +114,12 @@ class PipelineImage:
         # load data
         query = f"""select *, {col_query} from data"""
         df = duckdb.sql(query).pl()
+        df.write_parquet(self.path_image / f'{self.mode}_0.parquet')
         logger.info(f'[Data] Base Data {self.mode}: {df.shape}')
 
         # download
         if download:
-            df.write_parquet(self.path_image / f'{self.mode}_0.parquet')
-            self.download_images()
+            self.download_images_img2dataset() if download_mode == 'img2dataset' else self.download_images_request()
 
         # load data image
         data_img = self.load_images()
