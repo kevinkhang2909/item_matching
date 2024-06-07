@@ -48,7 +48,7 @@ class PipelineImage:
             if not path_img.exists():
                 try:
                     # img
-                    img = Image.open(response.raw).resize((224, 224))
+                    img = Image.open(response.raw).convert('RGB').resize((224, 224))
                     img.save(str(path_img))
                     # json
                     json_object = orjson.dumps(arr, option=orjson.OPT_INDENT_2).decode("utf-8")
