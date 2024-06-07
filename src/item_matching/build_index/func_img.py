@@ -9,11 +9,12 @@ import sys
 import requests
 from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
-from PIL import Image
+from PIL import Image, ImageFile, UnidentifiedImageError
 from .func import PipelineText, make_dir
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 class PipelineImage:
@@ -40,22 +41,27 @@ class PipelineImage:
             response = requests.get(url, stream=True)
 
             # path
-            path_img = folder / f'{idx}.png'
+            path_img = folder / f'{idx}.jpg'
             path_json = folder / f'{idx}.json'
 
             # resize and log json
             if not path_img.exists():
-                with Image.open(response.raw) as img:
-                    img.resize((224, 224))
+                try:
+                    # img
+                    img = Image.open(response.raw).resize((224, 224))
                     img.save(str(path_img))
+                    # json
+                    json_object = orjson.dumps(arr, option=orjson.OPT_INDENT_2).decode("utf-8")
+                    with open(str(path_json), 'w') as outfile:
+                        outfile.write(json_object)
+                except UnidentifiedImageError as e:
+                    pass
 
-                json_object = orjson.dumps(arr, option=orjson.OPT_INDENT_2).decode("utf-8")
-                with open(str(path_json), 'w') as outfile:
-                    outfile.write(json_object)
-
-        # read data
+        # path
         folder = self.path_image / f'img_{self.mode}/00000'
         if not folder.exists():
+            make_dir(folder)
+            # read data
             query = f"""select * from read_parquet('{self.path_image}/{self.mode}_0.parquet')"""
             df = (
                 duckdb.sql(query).pl()
