@@ -10,7 +10,8 @@ import requests
 from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageFile, UnidentifiedImageError
-from .func import PipelineText, make_dir
+from .function_text import PipelineText
+from .utilities import make_dir
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
@@ -109,7 +110,7 @@ class PipelineImage:
             self,
             data,
             download: bool = False,
-            download_mode : str = 'img2dataset',
+            download_mode: str = 'img2dataset',
             edit_img_url: bool = True,
     ):
         # edit url

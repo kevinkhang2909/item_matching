@@ -2,7 +2,7 @@ from pathlib import Path
 import duckdb
 import re
 from time import perf_counter
-from .build_index.func import rm_all_folder, make_dir
+from .build_index.utilities import rm_all_folder, make_dir
 from .build_index.matching import BELargeScale
 
 
@@ -85,11 +85,8 @@ class Matching:
                 df_match.write_csv(file_name)
 
             # remove caches
-            rm_all_folder(self.path / 'index')
-            rm_all_folder(self.path / 'result')
-            for i in ['db', 'q']:
-                rm_all_folder(self.path / f'{i}_array')
-                rm_all_folder(self.path / f'{i}_ds')
+            for name in ['index', 'result', 'db_array', 'db_ds', 'q_array', 'q_ds']:
+                rm_all_folder(self.path / name)
 
         # update log
         time_perf = perf_counter() - start

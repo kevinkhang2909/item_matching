@@ -1,7 +1,7 @@
 from src.item_matching import Matching
 from pathlib import Path
 import polars as pl
-from src.item_matching.build_index.func_img import PipelineImage
+from src.item_matching.build_index.function_image import PipelineImage
 
 
 path = Path.home() / 'Downloads/item_match'
