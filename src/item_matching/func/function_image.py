@@ -14,7 +14,7 @@ from .function_text import PipelineText
 from src.item_matching.func.utilities import make_dir
 
 logger.remove()
-logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
+logger.add(sys.stdout, colorize=True, format='<level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 

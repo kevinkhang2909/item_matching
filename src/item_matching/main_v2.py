@@ -7,6 +7,11 @@ from src.item_matching.func.utilities import make_dir, rm_all_folder
 from src.item_matching.pipeline.build_index_and_query import BuildIndexAndQuery, ConfigQuery
 from src.item_matching.pipeline.data_loading import DataEmbedding, ConfigEmbedding
 
+import sys
+from loguru import logger
+logger.remove()
+logger.add(sys.stdout, colorize=True, format='<level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
+
 
 class ModelInput(BaseModel):
     ROOT_PATH: Path = Field(default=None)

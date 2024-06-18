@@ -1,13 +1,10 @@
 import torch
 from loguru import logger
-import sys
 from PIL import Image
 from torch.nn import functional as F
 from transformers import AutoProcessor, SiglipVisionModel
 from FlagEmbedding import BGEM3FlagModel
 
-logger.remove()
-logger.add(sys.stdout, colorize=True, format='<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
 device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
 
 
