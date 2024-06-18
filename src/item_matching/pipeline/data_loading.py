@@ -3,16 +3,14 @@ import polars as pl
 from datasets import Dataset, concatenate_datasets
 from pathlib import Path
 import numpy as np
-from src.item_matching.build_index.model import Model
-from src.item_matching.build_index.utilities import make_dir
+from src.item_matching.model.model import Model
+from src.item_matching.func.utilities import make_dir
 from loguru import logger
 
 
 class ConfigEmbedding(BaseModel):
     ROOT_PATH: Path = Field(default=None)
     SHARD_SIZE: int = Field(default=1_500_000)
-    BATCH_SIZE: int = Field(default=50_000)
-    LEN_DATA: int = Field(default=None)
     MODE: str = Field(default='')
     MATCH_BY: str = Field(default='text')
 

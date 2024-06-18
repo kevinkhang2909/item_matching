@@ -2,8 +2,8 @@ from pathlib import Path
 import duckdb
 import re
 from time import perf_counter
-from .build_index.utilities import rm_all_folder, make_dir
-from .build_index.matching import BELargeScale
+from src.item_matching.func.utilities import rm_all_folder, make_dir
+from src.item_matching.build_index.matching import BELargeScale
 
 
 class Matching:

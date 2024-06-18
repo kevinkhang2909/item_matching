@@ -1,7 +1,7 @@
 from pathlib import Path
 import duckdb
 import polars as pl
-from src.item_matching.build_index.function_image import PipelineImage
+from src.item_matching.func.function_image import PipelineImage
 
 
 # path

@@ -1,19 +1,33 @@
 from pathlib import Path
 from pydantic import BaseModel, Field, computed_field
 import duckdb
-from src.item_matching.build_index.build_index_and_query import BuildIndexAndQuery
-from src.item_matching.build_index.data_loading import DataEmbedding
+import re
+from time import perf_counter
+from src.item_matching.func.utilities import make_dir, rm_all_folder
+from src.item_matching.pipeline.build_index_and_query import BuildIndexAndQuery, ConfigQuery
+from src.item_matching.pipeline.data_loading import DataEmbedding, ConfigEmbedding
 
 
-class RecordInput(BaseModel):
+class ModelInput(BaseModel):
     ROOT_PATH: Path = Field(default=None)
-    PROCESS_PATH_Q: Path = Field(default=None)
-    PROCESS_PATH_DB: Path = Field(default=None)
+    PATH_Q: Path = Field(default=None)
+    PATH_DB: Path = Field(default=None)
     MATCH_BY: str = Field(default='text')
+    COL_CATEGORY: str = Field(default='text')
+    SHARD_SIZE: int = Field(default=1_500_000)
+    QUERY_SIZE: int = Field(default=50_000)
+    TOP_K: int = Field(default=10)
+
+    @computed_field
+    @property
+    def path_result(self) -> Path:
+        path_result = self.ROOT_PATH / f'result_match'
+        make_dir(path_result)
+        return path_result
 
 
 class PipelineMatch:
-    def __init__(self, record: RecordInput):
+    def __init__(self, record: ModelInput):
         self.record = record
         self.lst_category = []
 
@@ -25,39 +39,108 @@ class PipelineMatch:
         """
         self.lst_category = duckdb.sql(query).pl()['category'].to_list()
 
+    def load_data(self, cat: str, mode: str = ''):
+        query = f"""
+        select * 
+        from read_parquet('{self.record.PATH_DB}') 
+        where {mode}_{self.record.COL_CATEGORY} = '{cat}'
+        """
+        return duckdb.sql(query).pl()
 
-record = {
-    'download_images': False,
-    'match_by': 'text_dense',
-    'process_path_db': Path('/media/kevin/75b198db-809a-4bd2-a97c-e52daa6b3a2d/item_match/db_clean.parquet'),
-    'process_path_q': Path('/media/kevin/75b198db-809a-4bd2-a97c-e52daa6b3a2d/item_match/q_clean.parquet')
-}
+    def run(self, export_type: str = 'parquet'):
+        # extract category
+        self.category_chunking()
+
+        # run
+        start = perf_counter()
+        for idx, cat in enumerate(self.lst_category):
+            # chunk checking
+            chunk_db = self.load_data(cat, 'db')
+            chunk_q = self.load_data(cat, 'q')
+
+            print(
+                f"🐋 Start matching by [{self.record.MATCH_BY}] cat: {cat} {idx}/{len(self.lst_category)} - "
+                f"Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
+            )
+
+            if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
+                print(f'Database/Query have no data')
+                continue
+
+            cat = re.sub('/', '', cat)
+            file_name = self.record.path_result / f'{cat}.{export_type}'
+            if file_name.exists():
+                print(f'File already exists: {file_name}')
+                continue
+
+            # embeddings
+            input_data = self.record.model_copy(update={'MODE': 'db'}).model_dump()
+            DataEmbedding(config_input=ConfigEmbedding(**input_data)).load(data=chunk_db)
+
+            input_data = self.record.model_copy(update={'MODE': 'q'}).model_dump()
+            DataEmbedding(config_input=ConfigEmbedding(**input_data)).load(data=chunk_q)
+
+            # index and query
+            build = BuildIndexAndQuery(config=ConfigQuery(**self.record.model_dump()))
+            build.build()
+            df_match = build.query(chunk_q)
+
+            # export
+            if export_type == 'parquet':
+                df_match.write_parquet(file_name)
+            else:
+                df_match.write_csv(file_name)
+
+            for name in ['index', 'result', 'db_array', 'db_ds', 'q_array', 'q_ds']:
+                rm_all_folder(self.record.ROOT_PATH / name)
+
+        time_perf = perf_counter() - start
+        print(f'🐋 Your files are ready, please find here: {self.record.path_result}')
+        return {'time_perf': time_perf, 'path result': self.record.path_result}
+
+
+# ROOT_PATH = Path('/media/kevin/75b198db-809a-4bd2-a97c-e52daa6b3a2d/item_match')
+# record = {
+#     'DOWNLOAD_IMAGE': False,
+#     'MATCH_BY': 'text',
+#     'PATH_DB': ROOT_PATH / 'db_clean.parquet',
+#     'PATH_Q': ROOT_PATH / 'q_clean.parquet',
+#     'ROOT_PATH': ROOT_PATH,
+#     'SHARD_SIZE': 1_500_000,
+#     'QUERY_SIZE': 50_000,
+#     'TOP_K': 10,
+# }
 
 
 # data
-path = Path('/media/kevin/75b198db-809a-4bd2-a97c-e52daa6b3a2d/item_match')
-path_database = path / 'db_clean.parquet'
-query = f"""
-select *
-from read_parquet('{path_database}')
-limit 10_000
-"""
-data = duckdb.sql(query).pl()
+# query = f"""
+# select *
+# from read_parquet('{record['PATH_DB']}')
+# limit 10_000
+# """
+# db = duckdb.sql(query).pl()
 
-# config
-input_data_embedding = {
-    'SHARD_SIZE': 1_500_000,
-    'BATCH_SIZE': 50_000,
-    'LEN_DATA': len(data),
-    'ROOT_PATH': path,
-    'MODE': 'db'
-}
-config_input = DataInput(**input_data_embedding)
+# query = f"""
+# select *
+# from read_parquet('{record['PATH_Q']}')
+# limit 10_000
+# """
+# q = duckdb.sql(query).pl()
 
-# embedding
-DataEmbedding(config_input=config_input).load(data=data)
+# # config
+# record.update({'MODE': 'db'})
+# config_input = ConfigEmbedding(**record)
+# DataEmbedding(config_input=config_input).load(data=db)
+#
+# record.update({'MODE': 'q'})
+# config_input = ConfigEmbedding(**record)
+# DataEmbedding(config_input=config_input).load(data=q)
 
-path_ds = Path('/media/kevin/75b198db-809a-4bd2-a97c-e52daa6b3a2d/item_match/db_ds')
-dataset_db = concatenate_datasets([
-    load_from_disk(str(f)) for f in sorted(path_ds.glob('*'))
-])
+
+# build = BuildIndexAndQuery(config=ConfigQuery(**record))
+# build.build()
+# df_match = build.query(q)
+# path_ds = Path('/media/kevin/75b198db-809a-4bd2-a97c-e52daa6b3a2d/item_match/db_ds')
+# dataset_db = concatenate_datasets([
+#     load_from_disk(str(f)) for f in sorted(path_ds.glob('*'))
+# ])

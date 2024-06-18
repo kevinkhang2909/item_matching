@@ -1,3 +1,4 @@
 from .main import Matching
-from .build_index.function_image import PipelineImage
-from .build_index.function_text import PipelineText
+from .main_v2 import ModelInput, PipelineMatch
+from src.item_matching.func.function_image import PipelineImage
+from src.item_matching.func.function_text import PipelineText

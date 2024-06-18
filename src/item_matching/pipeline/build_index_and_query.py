@@ -5,14 +5,13 @@ from re import search
 from autofaiss import build_index
 from datasets import concatenate_datasets, load_from_disk
 from pydantic import BaseModel, Field, computed_field
-from src.item_matching.build_index.utilities import make_dir
+from src.item_matching.func.utilities import make_dir
 from loguru import logger
 
 
 class ConfigQuery(BaseModel):
     ROOT_PATH: Path = Field(default=None)
     QUERY_SIZE: int = Field(default=50_000)
-    LEN_DATA: int = Field(default=None)
     MODE: str = Field(default='')
     MATCH_BY: str = Field(default='text')
     TOP_K: int = Field(default=10)
@@ -61,7 +60,7 @@ class BuildIndexAndQuery:
 
     def build(self):
         # Build index
-        logger.info(f'[BuildIndexAndQuery] Start building index')
+        logger.info(f'[BuildIndex] Start building index')
         start = perf_counter()
         path_index = self.config.path_index
         self.file_index = str(path_index / f'ip.index')
@@ -74,7 +73,9 @@ class BuildIndexAndQuery:
                 metric_type='ip',
                 verbose=30,
             )
-        logger.info(f'[BuildIndexAndQuery] Building Index: {perf_counter() - start:,.2f}s')
+            logger.info(f'Building Index: {perf_counter() - start:,.2f}s')
+        else:
+            logger.info(f'Index is existed')
 
     def load_dataset_index(self):
         # Load dataset shard
@@ -89,7 +90,7 @@ class BuildIndexAndQuery:
         self.dataset_q = concatenate_datasets([
             load_from_disk(str(f)) for f in sorted(self.config.path_ds_q.glob('*'))
         ])
-        logger.info(f'[BuildIndexAndQuery] Loading Shard')
+        logger.info(f'[Query] Shard Loaded')
 
     def query(self, df_q: pl.DataFrame):
         # Load
@@ -98,10 +99,7 @@ class BuildIndexAndQuery:
         # Batch query
         total_sample = len(self.dataset_q)
         num_batches = (total_sample + self.config.QUERY_SIZE) // self.config.QUERY_SIZE
-        logger.info(
-            f'[BuildIndexAndQuery] Total batches: {num_batches} '
-            f'- Query size: {self.config.QUERY_SIZE:,.0f}'
-        )
+        logger.info(f'Total batches: {num_batches} - Query size: {self.config.QUERY_SIZE:,.0f}')
         for i, idx in enumerate(range(num_batches), start=1):
             # init
             file_name_result = self.config.path_result / f'result_{idx}.parquet'
@@ -130,13 +128,13 @@ class BuildIndexAndQuery:
 
             # log
             logger.info(
-                f"[BuildIndexAndQuery] Batch {i}/{num_batches} match result shape: {df_result.shape} "
+                f"Batch {i}/{num_batches} match result shape: {df_result.shape} "
                 f"{perf_counter() - start_batch:,.2f}s"
             )
 
             # track errors
             if df_result.shape[0] == 0:
-                logger.warning(f"[BuildIndexAndQuery] Errors")
+                logger.warning(f"Errors")
                 return None
 
             del score, result, df_score, df_result
