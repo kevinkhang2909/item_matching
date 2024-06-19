@@ -11,7 +11,7 @@ from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageFile, UnidentifiedImageError
 from .function_text import PipelineText
-from src.item_matching.func.utilities import make_dir
+from item_matching.func.utilities import make_dir
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')

@@ -3,8 +3,8 @@ import polars as pl
 from datasets import Dataset, concatenate_datasets
 from pathlib import Path
 import numpy as np
-from src.item_matching.model.model import Model
-from src.item_matching.func.utilities import make_dir
+from item_matching.model.model import Model
+from item_matching.func.utilities import make_dir
 from loguru import logger
 
 

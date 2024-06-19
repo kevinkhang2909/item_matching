@@ -3,9 +3,9 @@ from pydantic import BaseModel, Field, computed_field
 import duckdb
 import re
 from time import perf_counter
-from src.item_matching.func.utilities import make_dir, rm_all_folder
-from src.item_matching.pipeline.build_index_and_query import BuildIndexAndQuery, ConfigQuery
-from src.item_matching.pipeline.data_loading import DataEmbedding, ConfigEmbedding
+from item_matching.func.utilities import make_dir, rm_all_folder
+from item_matching.pipeline.build_index_and_query import BuildIndexAndQuery, ConfigQuery
+from item_matching.pipeline.data_loading import DataEmbedding, ConfigEmbedding
 
 import sys
 from loguru import logger
@@ -18,7 +18,7 @@ class ModelInput(BaseModel):
     PATH_Q: Path = Field(default=None)
     PATH_DB: Path = Field(default=None)
     MATCH_BY: str = Field(default='text')
-    COL_CATEGORY: str = Field(default='text')
+    COL_CATEGORY: str = Field(default='')
     SHARD_SIZE: int = Field(default=1_500_000)
     QUERY_SIZE: int = Field(default=50_000)
     TOP_K: int = Field(default=10)
@@ -45,9 +45,10 @@ class PipelineMatch:
         self.lst_category = duckdb.sql(query).pl()['category'].to_list()
 
     def load_data(self, cat: str, mode: str = ''):
+        file = self.record.model_dump().get(f'PATH_{mode.upper()}')
         query = f"""
         select * 
-        from read_parquet('{self.record.PATH_DB}') 
+        from read_parquet('{file}') 
         where {mode}_{self.record.COL_CATEGORY} = '{cat}'
         """
         return duckdb.sql(query).pl()
