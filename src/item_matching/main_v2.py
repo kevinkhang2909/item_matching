@@ -102,7 +102,7 @@ class PipelineMatch:
 
         time_perf = perf_counter() - start
         print(f'🐋 Your files are ready, please find here: {self.record.path_result}')
-        return {'time_perf': time_perf, 'path result': self.record.path_result}
+        return {'time_perf': time_perf, 'path_result': self.record.path_result}
 
 
 # ROOT_PATH = Path('/media/kevin/75b198db-809a-4bd2-a97c-e52daa6b3a2d/item_match')
