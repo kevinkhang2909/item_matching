@@ -5,8 +5,8 @@ from time import perf_counter
 from re import search
 from autofaiss import build_index
 from datasets import concatenate_datasets, load_from_disk, Dataset
-from src.item_matching.func.utilities import make_dir
-from src.item_matching.model.model import Model
+from item_matching.func.utilities import make_dir
+from item_matching.model.model import Model
 import sys
 from loguru import logger
 
