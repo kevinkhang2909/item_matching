@@ -22,6 +22,7 @@ class ModelInput(BaseModel):
     SHARD_SIZE: int = Field(default=1_500_000)
     QUERY_SIZE: int = Field(default=50_000)
     TOP_K: int = Field(default=10)
+    MODE: str = Field(default='')
 
     @computed_field
     @property
@@ -103,50 +104,3 @@ class PipelineMatch:
         time_perf = perf_counter() - start
         print(f'🐋 Your files are ready, please find here: {self.record.path_result}')
         return {'time_perf': time_perf, 'path_result': self.record.path_result}
-
-
-# ROOT_PATH = Path('/media/kevin/75b198db-809a-4bd2-a97c-e52daa6b3a2d/item_match')
-# record = {
-#     'DOWNLOAD_IMAGE': False,
-#     'MATCH_BY': 'text',
-#     'PATH_DB': ROOT_PATH / 'db_clean.parquet',
-#     'PATH_Q': ROOT_PATH / 'q_clean.parquet',
-#     'ROOT_PATH': ROOT_PATH,
-#     'SHARD_SIZE': 1_500_000,
-#     'QUERY_SIZE': 50_000,
-#     'TOP_K': 10,
-# }
-
-
-# data
-# query = f"""
-# select *
-# from read_parquet('{record['PATH_DB']}')
-# limit 10_000
-# """
-# db = duckdb.sql(query).pl()
-
-# query = f"""
-# select *
-# from read_parquet('{record['PATH_Q']}')
-# limit 10_000
-# """
-# q = duckdb.sql(query).pl()
-
-# # config
-# record.update({'MODE': 'db'})
-# config_input = ConfigEmbedding(**record)
-# DataEmbedding(config_input=config_input).load(data=db)
-#
-# record.update({'MODE': 'q'})
-# config_input = ConfigEmbedding(**record)
-# DataEmbedding(config_input=config_input).load(data=q)
-
-
-# build = BuildIndexAndQuery(config=ConfigQuery(**record))
-# build.build()
-# df_match = build.query(q)
-# path_ds = Path('/media/kevin/75b198db-809a-4bd2-a97c-e52daa6b3a2d/item_match/db_ds')
-# dataset_db = concatenate_datasets([
-#     load_from_disk(str(f)) for f in sorted(path_ds.glob('*'))
-# ])
