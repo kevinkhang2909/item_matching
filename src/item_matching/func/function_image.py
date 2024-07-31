@@ -140,7 +140,6 @@ class PipelineImage:
         data = (
             df.drop(['images'])
             .pipe(PipelineText.clean_text)
-            .select(pl.all().name.prefix(f'{self.mode}_'))
             .join(data_img, on=f'{self.mode}_{self.col_image}', how='left')
             .filter(pl.col(f'{self.mode}_exists'))
         )

@@ -22,7 +22,7 @@ class PipelineText:
             .alias(f'{col.lower()}_clean')
         )
 
-    def run(self, data):
+    def run(self, data, key_col: list = None):
         # load data
         query = f"""select * from data"""
         df = duckdb.sql(query).pl()
@@ -31,8 +31,8 @@ class PipelineText:
         df = (
             df
             .pipe(PipelineText.clean_text)
+            .drop_nulls(subset=key_col)
             .select(pl.all().name.prefix(f'{self.mode}_'))
-            .drop_nulls()
         )
-        logger.info(f'[Data] Join Images {self.mode}: {df.shape}')
+        logger.info(f'[Data] Join Data {self.mode}: {df.shape}')
         return df
