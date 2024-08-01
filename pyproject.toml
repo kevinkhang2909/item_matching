@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "item_matching"
-version = "0.0.51"
+version = "0.0.52"
 authors = [
   { name="Kevin Khang", email="kevinkhang2909@gmail.com" },
 ]
@@ -20,6 +20,7 @@ classifiers = [
 keywords = ["semantic, retrieval"]
 dependencies = [
     'tqdm',
+    'emoji',
     'pyarrow',
     'duckdb',
     'polars',
