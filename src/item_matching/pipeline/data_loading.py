@@ -65,6 +65,12 @@ class DataEmbedding:
             f'- Shard size: {self.config_input.SHARD_SIZE:,.0f}'
         )
         for i, idx in enumerate(range(num_chunks), start=1):
+            # Check if exists:
+            dataset_name = self.config_input.path_ds / f'{idx}'
+            array_name = self.config_input.path_array / f'{idx}.npy'
+            if dataset_name.exists():
+                continue
+
             # Load Chunk
             start_idx = idx * self.config_input.SHARD_SIZE
             end_idx = min(start_idx + self.config_input.SHARD_SIZE, total_sample)
@@ -85,5 +91,5 @@ class DataEmbedding:
             dataset_chunk.set_format(type='numpy', columns=[col_embed], output_all_columns=True)
 
             # Save chunk
-            np.save(self.config_input.path_array / f'{idx}.npy', dataset_chunk[col_embed])
-            dataset_chunk.save_to_disk(str(self.config_input.path_ds / f'{idx}'))
+            np.save(array_name, dataset_chunk[col_embed])
+            dataset_chunk.save_to_disk(str(dataset_name))

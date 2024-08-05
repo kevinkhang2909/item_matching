@@ -49,7 +49,7 @@ class PipelineText:
 
     @staticmethod
     def clean_text(data: pl.DataFrame, col: str = 'item_name') -> pl.DataFrame:
-        lst = [PipelineText.clean_text_pipeline(x) for x in tqdm(data[col].to_list())]
+        lst = [PipelineText.clean_text_pipeline(x) for x in tqdm(data[col].to_list(), desc='[Pipeline] Clean Text')]
         return data.with_columns(pl.Series(name=f'{col}_clean', values=lst))
         # regex = "[\(\[\<\"].*?[\)\]\>\"]"
         # return data.with_columns(
