@@ -140,11 +140,16 @@ class BuildIndexAndQuery:
             del score, result, df_score, df_result
 
         # Post process
+        sort_key = lambda x: int(x.stem.split('_')[1])
         df_score = (
-            pl.concat([pl.read_parquet(f) for f in sorted(self.config.path_result.glob('score*.parquet'))])
+            pl.concat([
+                pl.read_parquet(f)
+                for f in sorted(self.config.path_result.glob('score*.parquet'), key=sort_key)])
         )
         df_result = (
-            pl.concat([pl.read_parquet(f) for f in sorted(self.config.path_result.glob('result*.parquet'))])
+            pl.concat([
+                pl.read_parquet(f)
+                for f in sorted(self.config.path_result.glob('result*.parquet'), key=sort_key)])
         )
         df_match = pl.concat([df_q, df_result, df_score], how='horizontal')
         col_explode = [i for i in df_match.columns if search('db|score', i)]
