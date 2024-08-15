@@ -7,6 +7,7 @@ from datasets import concatenate_datasets, load_from_disk
 from pydantic import BaseModel, Field, computed_field
 from item_matching.func.utilities import make_dir
 from loguru import logger
+import numpy as np
 
 
 class ConfigQuery(BaseModel):
@@ -120,10 +121,16 @@ class BuildIndexAndQuery:
                 k=self.config.TOP_K,
             )
             # export
-            dict_ = {f'score_{self.config.col_embedding}': [list(i) for i in score]}
+            df_result = pl.DataFrame(result)
+            df_result.write_parquet(file_name_result)
+
+            dict_ = {f'score_{self.config.col_embedding}': [list(np.round(arr, 6)) for arr in score]}
             df_score = pl.DataFrame(dict_)
             df_score.write_parquet(file_name_score)
-            df_result = pl.DataFrame(result).drop([self.config.col_embedding])
+
+            for arr in result:
+                del arr[self.config.col_embedding]
+            df_result = pl.DataFrame(result)
             df_result.write_parquet(file_name_result)
 
             # log
