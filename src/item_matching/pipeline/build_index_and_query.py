@@ -40,6 +40,16 @@ class ConfigQuery(BaseModel):
 
     @computed_field
     @property
+    def path_ds_inner(self) -> Path:
+        return self.ROOT_PATH / f'_ds'
+
+    @computed_field
+    @property
+    def path_array_inner(self) -> Path:
+        return self.ROOT_PATH / f'_array'
+
+    @computed_field
+    @property
     def path_index(self) -> Path:
         return self.ROOT_PATH / f'index'
 
@@ -52,22 +62,30 @@ class ConfigQuery(BaseModel):
 
 
 class BuildIndexAndQuery:
-    def __init__(self, config: ConfigQuery):
+    def __init__(self, config: ConfigQuery, inner: bool = False):
         self.config = config
         self.file_index = None
         self.dataset_db = None
         self.dataset_q = None
         self.df_q = None
+        self.sort_key = lambda x: int(x.stem)
+        self.inner = inner
 
     def build(self):
         # Build index
         logger.info(f'[BuildIndex] Start building index')
+
         start = perf_counter()
         path_index = self.config.path_index
         self.file_index = str(path_index / f'ip.index')
+
+        path_array = str(self.config.path_array_db)
+        if self.inner:
+            path_array = str(self.config.path_array_inner)
+
         if not path_index.exists():
             build_index(
-                str(self.config.path_array_db),
+                path_array,
                 index_path=self.file_index,
                 index_infos_path=str(path_index / f'index.json'),
                 save_on_disk=True,
@@ -78,10 +96,11 @@ class BuildIndexAndQuery:
         else:
             logger.info(f'Index is existed')
 
-    def load_dataset_index(self):
-        # Load dataset shard
+    def load_dataset(self):
+        # Dataset database shard
         self.dataset_db = concatenate_datasets([
-            load_from_disk(str(f)) for f in sorted(self.config.path_ds_db.glob('*'))
+            load_from_disk(str(f))
+            for f in sorted(self.config.path_ds_db.glob('*'), key=self.sort_key)
         ])
 
         # Add index
@@ -89,13 +108,33 @@ class BuildIndexAndQuery:
 
         # Dataset query shard
         self.dataset_q = concatenate_datasets([
-            load_from_disk(str(f)) for f in sorted(self.config.path_ds_q.glob('*'))
+            load_from_disk(str(f))
+            for f in sorted(self.config.path_ds_q.glob('*'), key=self.sort_key)
         ])
+
         logger.info(f'[Query] Shard Loaded')
 
-    def query(self, df_q: pl.DataFrame):
+    def load_dataset_inner(self):
+        # Load dataset shard
+        dataset = concatenate_datasets([
+            load_from_disk(str(f))
+            for f in sorted(self.config.path_ds_inner.glob('*'), key=self.sort_key)
+        ])
+        for i in dataset.column_names:
+            self.dataset_db = dataset.rename_column(i, f'db{i}')
+            self.dataset_q = dataset.rename_column(i, f'q{i}')
+
+        # Add index
+        self.dataset_db.load_faiss_index(f'db{self.config.col_embedding}', self.file_index)
+
+        logger.info(f'[Inner] Shard Loaded')
+
+    def query(self):
         # Load
-        self.load_dataset_index()
+        if self.inner:
+            self.load_dataset_inner()
+        else:
+            self.load_dataset()
 
         # Batch query
         total_sample = len(self.dataset_q)
@@ -158,7 +197,7 @@ class BuildIndexAndQuery:
                 pl.read_parquet(f)
                 for f in sorted(self.config.path_result.glob('result*.parquet'), key=sort_key)])
         )
-        df_match = pl.concat([df_q, df_result, df_score], how='horizontal')
+        df_match = pl.concat([self.dataset_q.to_polars(), df_result, df_score], how='horizontal')
         col_explode = [i for i in df_match.columns if search('db|score', i)]
         df_match = df_match.explode(col_explode)
 
