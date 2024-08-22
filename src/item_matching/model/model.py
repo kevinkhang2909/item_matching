@@ -55,20 +55,7 @@ class Model:
         embeddings = F.normalize(pooled_output, p=2, dim=1).cpu().numpy()
         return {'img_embed': embeddings}
 
-    @ staticmethod
-    def pp_normalize(batch, col: str = 'dense_embed') -> dict:
+    @staticmethod
+    def pp_normalize(batch, col: str = 'image_embed') -> dict:
         norm_embed = F.normalize(batch[col], p=2, dim=1).cpu().numpy()
         return {col: norm_embed}
-
-    @staticmethod
-    def pp_dense(batch, model, col: str) -> dict:
-        embeddings = model.encode(
-            batch[col],
-            batch_size=512,
-            max_length=80,
-            return_dense=True,
-            return_sparse=False,
-            return_colbert_vecs=False
-        )['dense_vecs']
-        embeddings = F.normalize(torch.tensor(embeddings), p=2, dim=1).cpu().numpy()
-        return {'dense_embed': embeddings}

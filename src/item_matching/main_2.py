@@ -90,7 +90,7 @@ class PipelineMatch:
             # index and query
             build = BuildIndexAndQuery(config=ConfigQuery(**self.record.model_dump()))
             build.build()
-            df_match = build.query(chunk_q)
+            df_match = build.query()
 
             # export
             if export_type == 'parquet':
