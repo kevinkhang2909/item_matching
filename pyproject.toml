@@ -34,6 +34,7 @@ dependencies = [
     'orjson',
     'sentencepiece',
     'img2dataset',
+    'peft'
 ]
 
 [project.urls]
