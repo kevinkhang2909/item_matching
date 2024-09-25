@@ -161,7 +161,7 @@ class BuildIndexAndQuery:
             )
             # export
             for arr in result:
-                del arr[self.config.col_embedding]
+                del arr[self.config.col_embedding]  # prevent memory leaks
             df_result = pl.DataFrame(result)
             df_result.write_parquet(file_name_result)
 
@@ -183,7 +183,7 @@ class BuildIndexAndQuery:
             del score, result, df_score, df_result
 
         # Post process
-        self.dataset_q = self.dataset_q.remove_columns(self.config.col_embedding)
+        self.dataset_q = self.dataset_q.remove_columns(self.config.col_embedding)  # prevent polars issues
         del self.dataset_db
 
         sort_key = lambda x: int(x.stem.split('_')[1])
