@@ -6,6 +6,8 @@ from FlagEmbedding import BGEM3FlagModel
 
 def load():
     path = Path('/media/kevin/data_4t/Test')
+    if str(Path.home()) == '/Users/kevinkhang':
+        path = Path.home() / 'Downloads/Data/Item_Matching_Test'
     file = path / 'item_match.parquet'
 
     col = [
