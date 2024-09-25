@@ -160,17 +160,14 @@ class BuildIndexAndQuery:
                 k=self.config.TOP_K,
             )
             # export
+            for arr in result:
+                del arr[self.config.col_embedding]
             df_result = pl.DataFrame(result)
             df_result.write_parquet(file_name_result)
 
             dict_ = {f'score_{self.config.col_embedding}': [list(np.round(arr, 6)) for arr in score]}
             df_score = pl.DataFrame(dict_)
             df_score.write_parquet(file_name_score)
-
-            for arr in result:
-                del arr[self.config.col_embedding]
-            df_result = pl.DataFrame(result)
-            df_result.write_parquet(file_name_result)
 
             # log
             logger.info(
@@ -186,6 +183,9 @@ class BuildIndexAndQuery:
             del score, result, df_score, df_result
 
         # Post process
+        self.dataset_q = self.dataset_q.remove_columns(self.config.col_embedding)
+        del self.dataset_db
+
         sort_key = lambda x: int(x.stem.split('_')[1])
         df_score = (
             pl.concat([
