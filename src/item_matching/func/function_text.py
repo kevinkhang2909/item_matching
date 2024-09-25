@@ -39,7 +39,7 @@ class PipelineText:
     @staticmethod
     def clean_text_pipeline(text: str) -> str:
         regex = r"[\(\[\<\"\|].*?[\)\]\>\"\|]"
-        text = text.lower().strip()
+        text = str(text).lower().strip()
         text = PipelineText.remove_text_between_emojis(text)
         text = emoji.replace_emoji(text, ' ')
         text = re.sub(regex, ' ', text)
