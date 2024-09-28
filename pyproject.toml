@@ -20,6 +20,7 @@ classifiers = [
 keywords = ["semantic, retrieval"]
 dependencies = [
     'tqdm',
+    'matplotlib',
     'emoji',
     'pyarrow',
     'duckdb',
@@ -34,7 +35,8 @@ dependencies = [
     'orjson',
     'sentencepiece',
     'img2dataset',
-    'peft'
+    'peft',
+    'einops',
 ]
 
 [project.urls]

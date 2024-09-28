@@ -1,28 +1,44 @@
 import matplotlib.pyplot as plt
 from PIL import Image
-import polars as pl
 import numpy as np
+from pathlib import Path
 
 
-def draw_images(data, test_id):
-    # search
-    sample = data.filter(pl.col('q_item_id') == test_id)
-    org_path = sample['q_file_path'][0]
-    query_path = sample['db_file_path'].to_list()
+class Draw:
+    def __init__(self):
+        pass
 
-    # plot
-    fig, ax = plt.subplots(1, 1, figsize=(7, 3))
-    ax.imshow(Image.open(org_path))
-    fig.tight_layout()
+    @staticmethod
+    def plot_one_image(file_path: Path, fig_size: tuple = (7, 3)):
+        fig, ax = plt.subplots(1, 1, figsize=fig_size)
+        ax.imshow(Image.open(file_path))
+        fig.tight_layout()
+        fig.show()
 
-    num_images, ncol = 5, 5
-    nrow = int(np.ceil(num_images / ncol))
-    fig, axes = plt.subplots(nrow, ncol, figsize=(20, 10))
-    axes = axes.flatten()
-    for i, image in enumerate(query_path):
-        axes[i].imshow(Image.open(image))
-        axes[i].axis('off')
+    @staticmethod
+    def plot_one_image_long_caption(file_path: Path, caption: str, fig_size: tuple = (12, 5)):
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=fig_size)
+        ax1.imshow(Image.open(file_path))
+        ax1.axis('off')
+        ax2.text(0, 0.5, caption, va='center', ha='left', wrap=True)
+        ax2.axis('off')
+        fig.tight_layout()
+        fig.show()
 
-    for _ in range(num_images, ncol * nrow, 1):
-        axes[_].remove()
-    fig.tight_layout()
+    @staticmethod
+    def plot_multiple_images(file_paths: list, fig_size: tuple = (20, 10)):
+        # layout
+        num_images, ncol = len(file_paths), min(len(file_paths), 5)
+        nrow = int(np.ceil(num_images / ncol))
+        fig, axes = plt.subplots(nrow, ncol, figsize=fig_size)
+        axes = axes.flatten()
+
+        # plot
+        for i, image in enumerate(file_paths):
+            axes[i].imshow(Image.open(image))
+            axes[i].axis('off')
+
+        # remove axes
+        for _ in range(num_images, ncol * nrow, 1):
+            axes[_].remove()
+        fig.tight_layout()
