@@ -152,7 +152,7 @@ class QwenChatInference:
     def run(self, description: str):
         start = perf_counter()
 
-        prompt = """
+        prompt = f"""
         You are an AI assistant specialized in creating concise and informative summaries of e-commerce product descriptions. Your task is to distill lengthy product descriptions into clear, engaging summaries that highlight the most important features and benefits for potential customers.
 
         Instructions:
@@ -191,7 +191,7 @@ class QwenChatInference:
 
         generated_ids = self.model.generate(
             **model_inputs,
-            max_new_tokens=512
+            max_new_tokens=256
         )
         generated_ids = [
             output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
