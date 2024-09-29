@@ -16,8 +16,13 @@ class Draw:
         fig.show()
 
     @staticmethod
-    def plot_one_image_long_caption(file_path: Path, caption: str, fig_size: tuple = (12, 5)):
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=fig_size)
+    def plot_one_image_long_caption(file_path: Path, caption: str, fig_size: tuple = (12, 5), vertical: bool = False):
+        nrows, ncols = 1, 2
+        if vertical:
+            nrows, ncols = 2, 1
+            fig_size = (5, 12)
+
+        fig, (ax1, ax2) = plt.subplots(nrows, ncols, figsize=fig_size)
         ax1.imshow(Image.open(file_path))
         ax1.axis('off')
         ax2.text(0, 0.5, caption, va='center', ha='left', wrap=True)
