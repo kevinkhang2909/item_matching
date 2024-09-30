@@ -45,7 +45,7 @@ class QwenVLInference:
             max_pixels=self.max_pixels
         )
 
-    def run(self, file_path: Path, vision_id: bool = False):
+    def run(self, file_path: Path, verbose: bool = False):
         start = perf_counter()
 
         # Prompt
@@ -94,7 +94,6 @@ class QwenVLInference:
             messages,
             tokenize=False,
             add_generation_prompt=True,
-            add_vision_id=vision_id
         )
         image_inputs, video_inputs = process_vision_info(messages)
         inputs = self.processor(
@@ -116,7 +115,8 @@ class QwenVLInference:
             skip_special_tokens=True,
             clean_up_tokenization_spaces=False
         )
-        print(f'[Visual Summarization] Time: {perf_counter() - start:,.0f}s')
+        if verbose:
+            print(f'[Visual Summarization] Time: {perf_counter() - start:,.0f}s')
         return output_text[0]
 
 
@@ -149,7 +149,7 @@ class QwenChatInference:
         self.model = AutoModelForCausalLM.from_pretrained(**config)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    def run(self, description: str):
+    def run(self, description: str, verbose: bool = False):
         start = perf_counter()
 
         prompt = f"""
@@ -198,5 +198,6 @@ class QwenChatInference:
         ]
 
         response = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        print(f'[Summarization] Time: {perf_counter() - start:,.0f}s')
+        if verbose:
+            print(f'[Summarization] Time: {perf_counter() - start:,.0f}s')
         return response
