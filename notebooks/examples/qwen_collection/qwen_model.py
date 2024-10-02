@@ -1,3 +1,4 @@
+from sympy.physics.units import speed
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor, AutoModelForCausalLM, AutoTokenizer
 from qwen_vl_utils import process_vision_info
 import torch
@@ -11,6 +12,7 @@ class QwenVLInference:
             min_pixels: int = 64 * 28 * 28,
             max_pixels: int = 512 * 28 * 28,
             flash_attention_2: bool = False,
+            speed_up: bool = False
     ):
         self.model_id = 'Qwen/Qwen2-VL-2B-Instruct'
         self.model = None
@@ -18,6 +20,7 @@ class QwenVLInference:
         self.min_pixels = min_pixels
         self.max_pixels = max_pixels
         self.flash_attention_2 = flash_attention_2
+        self.speed_up = speed_up
 
         self._load_model()
         self.device = self.model.device
@@ -39,6 +42,9 @@ class QwenVLInference:
                 'attn_implementation': 'flash_attention_2'
             })
         self.model = Qwen2VLForConditionalGeneration.from_pretrained(**config)
+        if self.speed_up:
+            self.model.eval()
+            self.model = torch.compile(self.model)
         self.processor = AutoProcessor.from_pretrained(
             self.model_id,
             min_pixels=self.min_pixels,
@@ -103,11 +109,12 @@ class QwenVLInference:
             return_tensors='pt',
         )
         inputs = inputs.to(self.device)
-        num_tokens = len(inputs)
+        num_tokens = inputs['input_ids'].shape[1]
 
         start_time = perf_counter()
-        generated_ids = self.model.generate(**inputs, max_new_tokens=256)
-        elapsed_time = (perf_counter() - start_time) / 60
+        with torch.inference_mode():
+            generated_ids = self.model.generate(**inputs, max_new_tokens=256)
+        elapsed_time = (perf_counter() - start_time)
         tpm = num_tokens / elapsed_time
 
         generated_ids_trimmed = [
@@ -122,21 +129,22 @@ class QwenVLInference:
             print(
                 f'[Qwen VL] \n'
                 f'Time: {perf_counter() - start:,.0f}s \n'
-                f'Prompt: {num_tokens} tokens, {tpm:,.2f} tokens-per-minute'
+                f'Prompt: {num_tokens} tokens, {tpm:,.2f} tokens-per-secs'
             )
         return output_text[0]
 
 
 class QwenChatInference:
-    def __init__(self, flash_attention_2: bool = False):
+    def __init__(self, flash_attention_2: bool = False, speed_up: bool = False):
         self.model = None
         self.tokenizer = None
         self.flash_attention_2 = flash_attention_2
+        self.speed_up = speed_up
         self._load_model()
         self.device = self.model.device
         print(
             f'[QwenChat Infer] '
-            f'Device: {self.device}, Flash Attention 2: {self.flash_attention_2}'
+            f'Device: {self.device}, Flash Attention 2: {self.flash_attention_2}, Speedup: {self.speed_up}'
         )
 
     def _load_model(self):
@@ -154,37 +162,41 @@ class QwenChatInference:
             })
 
         self.model = AutoModelForCausalLM.from_pretrained(**config)
+        if self.speed_up:
+            self.model.eval()
+            self.model = torch.compile(self.model)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    def run(self, description: str, verbose: bool = False):
-        start = perf_counter()
-
+    def _summarize_product_prompt(self, description: str):
         prompt = f"""
-        You are an AI assistant specialized in creating concise and informative summaries of e-commerce product descriptions. Your task is to distill lengthy product descriptions into clear, engaging summaries that highlight the most important features and benefits for potential customers.
+            You are an AI assistant specialized in creating concise and informative summaries of e-commerce product descriptions. Your task is to distill lengthy product descriptions into clear, engaging summaries that highlight the most important features and benefits for potential customers.
 
-        Instructions:
-        1. Read the full product description carefully.
-        2. Identify the key features, specifications, and unique selling points of the product.
-        3. Summarize the product, ensuring you capture the following elements:
-        - Product name
-        - Brief description (1-2 sentences)
-        - Key features (3-5 bullet points)
-        - Target audience or ideal use case (if mentioned)
-        - Warranty
-        - Specifications: Color, Size, Brand (Color must be in text not code)
-        5. Use clear, concise language that's easy for customers to understand.
-        6. Avoid using technical jargon unless it's essential to describing the product.
-        7. Maintain a neutral tone, focusing on facts rather than marketing language.
-        8. If there are multiple variations or models of the product, mention this briefly.
-        9. Format the output as a JSON object
+            Instructions:
+            1. Read the full product description carefully.
+            2. Identify the key features, specifications, and unique selling points of the product.
+            3. Summarize the product, ensuring you capture the following elements:
+            - Product name
+            - Brief description (1-2 sentences)
+            - Key features (3-5 bullet points)
+            - Target audience or ideal use case (if mentioned)
+            - Warranty
+            - Specifications: Color, Size, Brand (Color must be in text not code)
+            5. Use clear, concise language that's easy for customers to understand.
+            6. Avoid using technical jargon unless it's essential to describing the product.
+            7. Maintain a neutral tone, focusing on facts rather than marketing language.
+            8. If there are multiple variations or models of the product, mention this briefly.
+            9. Format the output as a JSON object
 
-        Remember, your goal is to create a structured summary that quickly gives potential customers the most important information about the product, helping them make informed purchasing decisions, while providing the data in a format that's easy to process programmatically.
-        Summarize the product description below, delimited by triple 
-        backticks.
+            Remember, your goal is to create a structured summary that quickly gives potential customers the most important information about the product, helping them make informed purchasing decisions, while providing the data in a format that's easy to process programmatically.
+            Summarize the product description below, delimited by triple 
+            backticks.
 
-        Description: ```{description}```
+            Description: ```{description}```
         """
+        return prompt
 
+    def generate(self, prompt: str, verbose: bool = False, max_new_tokens: int = 256):
+        start = perf_counter()
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt}
@@ -195,14 +207,15 @@ class QwenChatInference:
             add_generation_prompt=True
         )
         model_inputs = self.tokenizer([text], return_tensors="pt").to(self.device)
-        num_tokens = len(model_inputs)
+        num_tokens = model_inputs['input_ids'].shape[1]
 
         start_time = perf_counter()
-        generated_ids = self.model.generate(
-            **model_inputs,
-            max_new_tokens=256
-        )
-        elapsed_time = (perf_counter() - start_time) / 60
+        with torch.inference_mode():
+            generated_ids = self.model.generate(
+                **model_inputs,
+                max_new_tokens=512
+            )
+        elapsed_time = (perf_counter() - start_time)
         tpm = num_tokens / elapsed_time
 
         generated_ids = [
@@ -214,6 +227,11 @@ class QwenChatInference:
             print(
                 f'[Qwen Chat] \n'
                 f'Time: {perf_counter() - start:,.0f}s \n'
-                f'Prompt: {num_tokens} tokens, {tpm:,.2f} tokens-per-minute'
+                f'Prompt: {num_tokens} tokens, {tpm:,.2f} tokens-per-secs'
             )
+        return response
+
+    def run(self, description: str, verbose: bool = False):
+        prompt = self._summarize_product_prompt(description)
+        response = self.generate(prompt, verbose)
         return response
