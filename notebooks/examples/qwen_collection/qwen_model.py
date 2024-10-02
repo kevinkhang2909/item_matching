@@ -1,8 +1,8 @@
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor, AutoModelForCausalLM, AutoTokenizer
 from qwen_vl_utils import process_vision_info
 import torch
-from time import perf_counter
 from pathlib import Path
+from time import perf_counter
 
 
 class QwenVLInference:
@@ -89,7 +89,6 @@ class QwenVLInference:
             }
         ]
 
-        # Preparation for inference
         text = self.processor.apply_chat_template(
             messages,
             tokenize=False,
@@ -104,9 +103,13 @@ class QwenVLInference:
             return_tensors='pt',
         )
         inputs = inputs.to(self.device)
+        num_tokens = len(inputs)
 
-        # Inference: Generation of the output
+        start_time = perf_counter()
         generated_ids = self.model.generate(**inputs, max_new_tokens=256)
+        elapsed_time = (perf_counter() - start_time) / 60
+        tpm = num_tokens / elapsed_time
+
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
@@ -116,7 +119,11 @@ class QwenVLInference:
             clean_up_tokenization_spaces=False
         )
         if verbose:
-            print(f'[Visual Summarization] Time: {perf_counter() - start:,.0f}s')
+            print(
+                f'[Qwen VL] \n'
+                f'Time: {perf_counter() - start:,.0f}s \n'
+                f'Prompt: {num_tokens} tokens, {tpm:,.2f} tokens-per-minute'
+            )
         return output_text[0]
 
 
@@ -188,16 +195,25 @@ class QwenChatInference:
             add_generation_prompt=True
         )
         model_inputs = self.tokenizer([text], return_tensors="pt").to(self.device)
+        num_tokens = len(model_inputs)
 
+        start_time = perf_counter()
         generated_ids = self.model.generate(
             **model_inputs,
             max_new_tokens=256
         )
+        elapsed_time = (perf_counter() - start_time) / 60
+        tpm = num_tokens / elapsed_time
+
         generated_ids = [
             output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
         ]
 
         response = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
         if verbose:
-            print(f'[Summarization] Time: {perf_counter() - start:,.0f}s')
+            print(
+                f'[Qwen Chat] \n'
+                f'Time: {perf_counter() - start:,.0f}s \n'
+                f'Prompt: {num_tokens} tokens, {tpm:,.2f} tokens-per-minute'
+            )
         return response
