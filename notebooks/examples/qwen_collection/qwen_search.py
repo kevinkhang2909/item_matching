@@ -72,7 +72,7 @@ def run(file_raw: str, col: str = 'q_item_name_clean'):
     )
 
     df_match = pl.concat([df_q.drop(['embed']), df_result, df_score], how='horizontal')
-    col_explode = [i for i in df_match.columns if 'db' in i] + ['score']
+    col_explode = [i for i in df_match.columns if 'notebooks' in i] + ['score']
     df_match = df_match.explode(col_explode)
 
     df_match.write_parquet(path / f'result_{file_raw}_{col}.parquet')

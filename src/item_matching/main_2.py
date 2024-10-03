@@ -62,7 +62,7 @@ class PipelineMatch:
         start = perf_counter()
         for idx, cat in enumerate(self.lst_category):
             # chunk checking
-            chunk_db = self.load_data(cat, 'db')
+            chunk_db = self.load_data(cat, 'notebooks')
             chunk_q = self.load_data(cat, 'q')
 
             print(
@@ -81,7 +81,7 @@ class PipelineMatch:
                 continue
 
             # embeddings
-            input_data = self.record.model_copy(update={'MODE': 'db'}).model_dump()
+            input_data = self.record.model_copy(update={'MODE': 'notebooks'}).model_dump()
             DataEmbedding(config_input=ConfigEmbedding(**input_data)).load(data=chunk_db)
 
             input_data = self.record.model_copy(update={'MODE': 'q'}).model_dump()
