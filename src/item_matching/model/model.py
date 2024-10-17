@@ -43,17 +43,7 @@ class Model:
         with torch.inference_mode():
             outputs = self.img_model(**inputs)
         pooled_output = outputs.pooler_output
-        return {'img_embed': pooled_output}
-
-    @staticmethod
-    def pp_img(batch, model, processor, col: str) -> dict:
-        images = [Image.open(i).convert('RGB') for i in batch[col]]
-        inputs = processor(images=images, return_tensors='pt').to(device)
-        with torch.inference_mode():
-            outputs = model(**inputs)
-        pooled_output = outputs.pooler_output
-        embeddings = F.normalize(pooled_output, p=2, dim=1).cpu().numpy()
-        return {'img_embed': embeddings}
+        return {'image_embed': pooled_output}
 
     @staticmethod
     def pp_normalize(batch, col: str = 'image_embed') -> dict:

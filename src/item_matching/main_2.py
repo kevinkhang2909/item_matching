@@ -17,7 +17,7 @@ class ModelInput(BaseModel):
     ROOT_PATH: Path = Field(default=None)
     PATH_Q: Path = Field(default=None)
     PATH_DB: Path = Field(default=None)
-    MATCH_BY: str = Field(default='text')
+    MATCH_BY: str = Field(default='text') # image
     COL_CATEGORY: str = Field(default='')
     SHARD_SIZE: int = Field(default=1_500_000)
     QUERY_SIZE: int = Field(default=50_000)
@@ -27,7 +27,7 @@ class ModelInput(BaseModel):
     @computed_field
     @property
     def path_result(self) -> Path:
-        path_result = self.ROOT_PATH / f'result_match'
+        path_result = self.ROOT_PATH / f'result_match_{self.MATCH_BY}'
         make_dir(path_result)
         return path_result
 
@@ -62,7 +62,7 @@ class PipelineMatch:
         start = perf_counter()
         for idx, cat in enumerate(self.lst_category):
             # chunk checking
-            chunk_db = self.load_data(cat, 'notebooks')
+            chunk_db = self.load_data(cat, 'db')
             chunk_q = self.load_data(cat, 'q')
 
             print(
@@ -81,7 +81,7 @@ class PipelineMatch:
                 continue
 
             # embeddings
-            input_data = self.record.model_copy(update={'MODE': 'notebooks'}).model_dump()
+            input_data = self.record.model_copy(update={'MODE': 'db'}).model_dump()
             DataEmbedding(config_input=ConfigEmbedding(**input_data)).load(data=chunk_db)
 
             input_data = self.record.model_copy(update={'MODE': 'q'}).model_dump()

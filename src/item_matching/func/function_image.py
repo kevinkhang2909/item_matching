@@ -11,7 +11,7 @@ from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageFile, UnidentifiedImageError
 from .function_text import PipelineText
-from .utilities import make_dir
+from item_matching.func.utilities import make_dir
 
 logger.remove()
 logger.add(sys.stdout, colorize=True, format='<level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
@@ -22,11 +22,10 @@ class PipelineImage:
     def __init__(
             self,
             path: Path,
-            col_image: str = 'image_url',
             mode: str = ''
     ):
         self.path_image = path / 'download_img'
-        self.col_image = col_image
+        self.col_img_download = 'image_url'
         self.mode = mode
 
         # init path image
@@ -35,7 +34,7 @@ class PipelineImage:
     def download_images_request(self):
         def _download(arr: dict):
             # init
-            url = arr['url']
+            url = arr[self.col_img_download]
             idx = arr['index']
 
             # get
@@ -66,7 +65,6 @@ class PipelineImage:
             query = f"""select * from read_parquet('{self.path_image}/{self.mode}_0.parquet')"""
             df = (
                 duckdb.sql(query).pl()
-                .rename({self.col_image: 'url'})
                 .with_row_index()
             )
             # run
@@ -86,7 +84,7 @@ class PipelineImage:
                 f"--image_size=224 "
                 f"--output_format=files "
                 f"--input_format=parquet "
-                f"--url_col={self.col_image} "
+                f"--url_col={self.col_img_download} "
                 f"--number_sample_per_shard=50000 "
             )
             subprocess.run(command, shell=True)
@@ -98,7 +96,7 @@ class PipelineImage:
         lst_file = [orjson.loads(open(str(i), "r").read())['url'] for i in tqdm(lst_json, desc='Loading json in folder')]
         lst_img = [str(i) for i in tqdm(sorted(path.glob('*/*.jpg')), desc='Loading jpg in folder')]
         df = pl.DataFrame({
-            f'{self.mode}_{self.col_image}': lst_file,
+            f'{self.mode}_{self.col_img_download}': lst_file,
             f'{self.mode}_file_path': lst_img,
             f'{self.mode}_exists': [True] * len(lst_file),
         })
@@ -111,12 +109,11 @@ class PipelineImage:
             data,
             download: bool = False,
             download_mode: str = 'img2dataset',
-            edit_img_url: bool = True,
+            col_img_url: str = 'images',
     ):
         # edit url
-        col_query = f",concat('http://f.shopee.vn/file/', UNNEST(array_slice(string_split(images, ','), 1, 1))) {self.col_image}"
-        if edit_img_url:
-            col_query = f"images {self.col_image}"
+        # col_query = f",concat('http://f.shopee.vn/file/', UNNEST(array_slice(string_split(images, ','), 1, 1))) {self.col_image}"
+        col_query = f"{col_img_url} {self.col_img_download}"
 
         # load data
         query = f"""select *, {col_query} from data"""
@@ -138,9 +135,10 @@ class PipelineImage:
 
         # join
         data = (
-            df.drop(['images'])
+            df
             .pipe(PipelineText.clean_text)
-            .join(data_img, on=f'{self.mode}_{self.col_image}', how='left')
+            .select(pl.all().name.prefix(f'{self.mode}_'))
+            .join(data_img, on=f'{self.mode}_{self.col_img_download}', how='left')
             .filter(pl.col(f'{self.mode}_exists'))
         )
         logger.info(f'[Data] Join Images {self.mode}: {data.shape}')

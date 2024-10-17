@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "item_matching"
-version = "0.0.59"
+version = "0.0.60"
 authors = [
   { name="Kevin Khang", email="kevinkhang2909@gmail.com" },
 ]
@@ -37,6 +37,7 @@ dependencies = [
     'img2dataset',
     'peft',
     'einops',
+    'albumentations'
 ]
 
 [project.urls]

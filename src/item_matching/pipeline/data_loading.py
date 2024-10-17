@@ -83,11 +83,16 @@ class DataEmbedding:
                 dset_embed = Dataset.from_dict({col_embed: embeddings})
                 dataset_chunk = concatenate_datasets([dataset_chunk, dset_embed], axis=1)
             else:
-                dataset_chunk.map(model.process_image, batched=True, fn_kwargs={'col': self.config_input.col_input})
+                dataset_chunk = dataset_chunk.map(
+                    model.process_image,
+                    batch_size=512,
+                    batched=True,
+                    fn_kwargs={'col': self.config_input.col_input}
+                )
 
             # Normalize
             dataset_chunk.set_format(type='torch', columns=[col_embed], output_all_columns=True)
-            if self.config_input.MATCH_BY != 'text':
+            if self.config_input.MATCH_BY == 'image':
                 dataset_chunk.map(Model.pp_normalize, batched=True, fn_kwargs={'col': col_embed})
             dataset_chunk.set_format(type='numpy', columns=[col_embed], output_all_columns=True)
 
