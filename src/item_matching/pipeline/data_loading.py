@@ -93,7 +93,7 @@ class DataEmbedding:
             # Normalize
             dataset_chunk.set_format(type='torch', columns=[col_embed], output_all_columns=True)
             if self.config_input.MATCH_BY == 'image':
-                dataset_chunk.map(Model.pp_normalize, batched=True, fn_kwargs={'col': col_embed})
+                dataset_chunk = dataset_chunk.map(Model.pp_normalize, batched=True, fn_kwargs={'col': col_embed})
             dataset_chunk.set_format(type='numpy', columns=[col_embed], output_all_columns=True)
 
             # Save chunk
