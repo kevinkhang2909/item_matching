@@ -22,10 +22,11 @@ class PipelineImage:
     def __init__(
             self,
             path: Path,
-            mode: str = ''
+            mode: str = '',
+            col_img_download: str = 'image_url',
     ):
         self.path_image = path / 'download_img'
-        self.col_img_download = 'image_url'
+        self.col_img_download = col_img_download
         self.mode = mode
 
         # init path image
