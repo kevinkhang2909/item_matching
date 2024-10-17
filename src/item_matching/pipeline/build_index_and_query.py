@@ -121,11 +121,11 @@ class BuildIndexAndQuery:
             for f in sorted(self.config.path_ds_inner.glob('*'), key=self.sort_key)
         ])
         for i in dataset.column_names:
-            self.dataset_db = dataset.rename_column(i, f'notebooks{i}')
+            self.dataset_db = dataset.rename_column(i, f'db{i}')
             self.dataset_q = dataset.rename_column(i, f'q{i}')
 
         # Add index
-        self.dataset_db.load_faiss_index(f'notebooks{self.config.col_embedding}', self.file_index)
+        self.dataset_db.load_faiss_index(f'db{self.config.col_embedding}', self.file_index)
 
         logger.info(f'[Inner] Shard Loaded')
 
@@ -198,7 +198,7 @@ class BuildIndexAndQuery:
                 for f in sorted(self.config.path_result.glob('result*.parquet'), key=sort_key)])
         )
         df_match = pl.concat([self.dataset_q.to_polars(), df_result, df_score], how='horizontal')
-        col_explode = [i for i in df_match.columns if search('notebooks|score', i)]
+        col_explode = [i for i in df_match.columns if search('db|score', i)]
         df_match = df_match.explode(col_explode)
 
         return df_match
