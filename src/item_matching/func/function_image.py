@@ -109,14 +109,9 @@ class PipelineImage:
             data,
             download: bool = False,
             download_mode: str = 'img2dataset',
-            col_img_url: str = 'images',
     ):
-        # edit url
-        # col_query = f",concat('http://f.shopee.vn/file/', UNNEST(array_slice(string_split(images, ','), 1, 1))) {self.col_image}"
-        col_query = f"{col_img_url} {self.col_img_download}"
-
         # load data
-        query = f"""select *, {col_query} from data"""
+        query = f"""select * from data"""
         df = duckdb.sql(query).pl()
         df.write_parquet(self.path_image / f'{self.mode}_0.parquet')
         logger.info(f'[Data] Base Data {self.mode}: {df.shape}')
