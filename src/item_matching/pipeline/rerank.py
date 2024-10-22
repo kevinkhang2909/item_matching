@@ -95,7 +95,7 @@ class ReRank:
 
     def run(self):
         total_cat = len(self.all_category)
-        for cat in tqdm(self.all_category, total=total_cat):
+        for cat in tqdm(self.all_category, total=total_cat, desc='ReRanking'):
             df = self.rerank_score(category=cat)
             df = PostProcessing(df).run()
             df.write_parquet(self.path_result / f'{cat}.parquet')

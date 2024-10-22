@@ -1,4 +1,6 @@
 import duckdb
+from pathlib import Path
+from .utilities import make_dir
 
 
 class PostProcessing:
@@ -29,14 +31,23 @@ class PostProcessing:
         return self.query_add_show_img
 
     def run(self):
+        data = self.data
         query = f"""
         select *
         {self.add_show_image()}
         {self.add_url()}
-        from self.data
+        from data
         """
         df = (
             duckdb.sql(query).pl()
             .select(self.select_export_cols())
         )
         return df
+
+
+def save_parquet_to_csv(path: Path):
+    path_export = path.parent / 'result_export'
+    make_dir(path_export)
+    for f in [*path.glob('*.parquet')]:
+        query = f"""COPY (SELECT * FROM read_parquet('{str(f)}')) TO '{path_export}/{f.stem}.csv' (HEADER, DELIMITER ',')"""
+        duckdb.sql(query)
