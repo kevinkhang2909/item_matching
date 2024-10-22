@@ -3,6 +3,8 @@ import duckdb
 from pathlib import Path
 from pydantic import BaseModel, Field, computed_field
 from loguru import logger
+from torch.backends.mkl import verbose
+
 from ..func.utilities import make_dir
 from ..func.post_processing import PostProcessing
 
@@ -30,7 +32,7 @@ class ReRankConfig(BaseModel):
 
 
 class ReRank:
-    def __init__(self, record: ReRankConfig):
+    def __init__(self, record: ReRankConfig, verbose: bool = False):
         # path
         self.path_img = record.path_image_result
         self.path_text = record.path_text_result
@@ -45,7 +47,7 @@ class ReRank:
 
         # select cols
         total_cols = set(pl.read_parquet(self.file_text[0]).columns + pl.read_parquet(self.file_image[0]).columns)
-        patterns = ['item_name_clean', 'file_path', 'rnk', 'exists']
+        patterns = ['item_name_clean', 'file_path', 'rnk', 'exists', 'score_dense_embed', 'score_image_embed']
         select_cols = [col for col in total_cols if not any(pattern in col for pattern in patterns)]
         self.duckdb_cols = '\n, '.join([f'{i}' for i in select_cols])
 
@@ -87,6 +89,8 @@ class ReRank:
             , row_number() OVER (PARTITION BY q_item_id ORDER BY score_mean desc) score_rerank
             from cal_tab
             """
+        if verbose:
+            print(query)
         return duckdb.sql(query).pl()
 
     def run(self):
