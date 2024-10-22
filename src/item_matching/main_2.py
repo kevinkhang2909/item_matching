@@ -54,7 +54,7 @@ class PipelineMatch:
         """
         return duckdb.sql(query).pl()
 
-    def run(self, export_type: str = 'parquet'):
+    def run(self):
         # extract category
         self.category_chunking()
 
@@ -65,19 +65,19 @@ class PipelineMatch:
             chunk_db = self.load_data(cat, 'db')
             chunk_q = self.load_data(cat, 'q')
 
-            print(
+            logger.info(
                 f"🐋 Start matching by [{self.record.MATCH_BY}] cat: {cat} {idx}/{len(self.lst_category)} - "
                 f"Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
             )
 
             if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
-                print(f'Database/Query have no data')
+                logger.info(f'Database/Query have no data')
                 continue
 
             cat = re.sub('/', '', cat)
-            file_name = self.record.path_result / f'{cat}.{export_type}'
+            file_name = self.record.path_result / f'{cat}.parquet'
             if file_name.exists():
-                print(f'File already exists: {file_name}')
+                logger.info(f'File already exists: {file_name}')
                 continue
 
             # embeddings
@@ -93,14 +93,11 @@ class PipelineMatch:
             df_match = build.query()
 
             # export
-            if export_type == 'parquet':
-                df_match.write_parquet(file_name)
-            else:
-                df_match.write_csv(file_name)
+            df_match.write_parquet(file_name)
 
             for name in ['index', 'result', 'db_array', 'db_ds', 'q_array', 'q_ds']:
                 rm_all_folder(self.record.ROOT_PATH / name)
 
         time_perf = perf_counter() - start
-        print(f'🐋 Your files are ready, please find here: {self.record.path_result}')
+        logger.success(f'🐋 Your files are ready, please find here: {self.record.path_result}')
         return {'time_perf': time_perf, 'path_result': self.record.path_result}

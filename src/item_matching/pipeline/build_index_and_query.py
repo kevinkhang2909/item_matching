@@ -5,9 +5,9 @@ from re import search
 from autofaiss import build_index
 from datasets import concatenate_datasets, load_from_disk
 from pydantic import BaseModel, Field, computed_field
-from item_matching.func.utilities import make_dir
 from loguru import logger
 import numpy as np
+from item_matching.func.utilities import make_dir
 
 
 class ConfigQuery(BaseModel):
