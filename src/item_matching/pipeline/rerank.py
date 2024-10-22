@@ -1,8 +1,9 @@
 import polars as pl
 import duckdb
 from pathlib import Path
-from core_pro.ultilities import make_dir
 from pydantic import BaseModel, Field, computed_field
+from loguru import logger
+from ..func.utilities import make_dir
 from ..func.post_processing import PostProcessing
 
 
@@ -13,7 +14,7 @@ class ReRankConfig(BaseModel):
     @computed_field
     @property
     def path_result(self) -> Path:
-        path_result = self.path_text_result.parent
+        path_result = self.path_text_result.parent / 'result_rerank'
         make_dir(path_result)
         return path_result
 
@@ -31,7 +32,7 @@ class ReRankConfig(BaseModel):
 class ReRank:
     def __init__(self, record: ReRankConfig):
         # path
-        self.path_img = record.path_text_result
+        self.path_img = record.path_image_result
         self.path_text = record.path_text_result
         self.path_result = record.path_result
 
@@ -90,6 +91,7 @@ class ReRank:
 
     def run(self):
         for cat in self.all_category:
+            logger.info(f'[RERANK] {cat}')
             df = self.rerank_score(category=cat)
             df = PostProcessing(df).run()
             df.write_parquet(self.path_result / f'{cat}.parquet')
