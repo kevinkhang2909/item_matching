@@ -3,8 +3,7 @@ import duckdb
 from pathlib import Path
 from pydantic import BaseModel, Field, computed_field
 from loguru import logger
-from torch.backends.mkl import verbose
-
+from tqdm import tqdm
 from ..func.utilities import make_dir
 from ..func.post_processing import PostProcessing
 
@@ -37,6 +36,7 @@ class ReRank:
         self.path_img = record.path_image_result
         self.path_text = record.path_text_result
         self.path_result = record.path_result
+        self.verbose = verbose
 
         # file
         self.file_text = record.file_text
@@ -89,13 +89,14 @@ class ReRank:
             , row_number() OVER (PARTITION BY q_item_id ORDER BY score_mean desc) score_rerank
             from cal_tab
             """
-        if verbose:
+        if self.verbose:
             print(query)
         return duckdb.sql(query).pl()
 
     def run(self):
-        for cat in self.all_category:
-            logger.info(f'[RERANK] {cat}')
+        total_cat = len(self.all_category)
+        for cat in tqdm(self.all_category, total=total_cat):
             df = self.rerank_score(category=cat)
             df = PostProcessing(df).run()
             df.write_parquet(self.path_result / f'{cat}.parquet')
+        logger.success(f'[RERANK]: Done {total_cat} categories')
