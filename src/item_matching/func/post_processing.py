@@ -20,13 +20,13 @@ class PostProcessing:
         final_col = q_col + db_col + ['q_image_url', 'db_image_url'] + score_col
         return final_col
 
-    def add_url(self):
+    def query_add_url(self) -> str:
         for i in self.mode:
             if f'{i}_shop_id' in self.data.columns:
                 self.query_add_url_duckdb += f", 'https://shopee.vn/product/' || {i}_shop_id || '/' || {i}_item_id {i}_url\n"
         return self.query_add_url_duckdb
 
-    def add_show_image(self):
+    def query_add_show_image(self) -> str:
         for i in self.mode:
             if f'{i}_image_url' in self.data.columns:
                 self.query_add_show_img += f""", '=IMAGE("' || {i}_image_url || '", 1)' {i}_image_url\n"""
@@ -34,7 +34,7 @@ class PostProcessing:
 
     def run(self):
         # init
-        show_image = self.add_show_image()
+        show_image = self.query_add_show_image()
         add_exclude = ''
         if len(show_image) != 0:
             add_exclude += 'EXCLUDE (db_image_url, q_image_url)'
@@ -43,8 +43,8 @@ class PostProcessing:
         # query
         query = f"""
         select * {add_exclude}
-        {self.add_show_image()}
-        {self.add_url()}
+        {show_image}
+        {self.query_add_url()}
         from data
         """
         if self.verbose:
@@ -52,7 +52,6 @@ class PostProcessing:
         else:
             df = duckdb.sql(query).pl()
             select_col = PostProcessing.select_export_cols(df)
-            print(select_col)
             df = df.select(select_col)
         return df
 
@@ -63,3 +62,4 @@ class PostProcessing:
         for f in [*path.glob('*.parquet')]:
             query = f"""COPY (SELECT * FROM read_parquet('{str(f)}')) TO '{path_export}/{f.stem}.csv' (HEADER, DELIMITER ',')"""
             duckdb.sql(query)
+        return path_export
