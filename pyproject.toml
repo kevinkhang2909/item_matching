@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "item_matching"
-version = "0.0.72"
+version = "0.0.73"
 authors = [
   { name="Kevin Khang", email="kevinkhang2909@gmail.com" },
 ]
@@ -28,7 +28,6 @@ dependencies = [
     'transformers',
     'torch',
     'autofaiss',
-    'loguru',
     'datasets',
     'scikit-learn',
     'FlagEmbedding',
@@ -37,7 +36,8 @@ dependencies = [
     'img2dataset',
     'peft',
     'einops',
-    'albumentations'
+    'albumentations',
+    'rich',
 ]
 
 [project.urls]

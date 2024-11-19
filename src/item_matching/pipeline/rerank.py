@@ -2,7 +2,6 @@ import polars as pl
 import duckdb
 from pathlib import Path
 from pydantic import BaseModel, Field, computed_field
-from loguru import logger
 from tqdm import tqdm
 from ..func.utilities import make_dir
 from ..func.post_processing import PostProcessing
@@ -99,4 +98,4 @@ class ReRank:
             df = self.rerank_score(category=cat)
             df = PostProcessing(df).run()
             df.write_parquet(self.path_result / f'{cat}.parquet')
-        logger.success(f'[RERANK]: Done {total_cat} categories')
+        print(f'[RERANK]: Done {total_cat} categories')

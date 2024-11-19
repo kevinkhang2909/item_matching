@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from ..model.model import Model
 from ..func.utilities import make_dir
-from loguru import logger
+from rich import print
 
 
 class ConfigEmbedding(BaseModel):
@@ -60,7 +60,7 @@ class DataEmbedding:
         col_embed = self.config_input.col_embedding
 
         # Process and save each chunk
-        logger.info(
+        print(
             f'[DataEmbedding] Total chunks {self.config_input.MODE}: {num_chunks} '
             f'- Shard size: {self.config_input.SHARD_SIZE:,.0f}'
         )
@@ -75,7 +75,7 @@ class DataEmbedding:
             start_idx = idx * self.config_input.SHARD_SIZE
             end_idx = min(start_idx + self.config_input.SHARD_SIZE, total_sample)
             dataset_chunk = Dataset.from_polars(data[start_idx:end_idx])
-            logger.info(f'Shard [{i}/{num_chunks}]: start {start_idx:,.0f} end {end_idx:,.0f}')
+            print(f'Shard [{i}/{num_chunks}]: start {start_idx:,.0f} end {end_idx:,.0f}')
 
             # Process dataset
             if self.config_input.MATCH_BY == 'text':

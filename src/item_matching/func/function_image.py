@@ -5,16 +5,13 @@ import orjson
 from tqdm import tqdm
 import subprocess
 import os
-import sys
 import requests
-from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageFile, UnidentifiedImageError
-from .function_text import PipelineText
+from rich import print
 from item_matching.func.utilities import make_dir
+from .function_text import PipelineText
 
-logger.remove()
-logger.add(sys.stdout, colorize=True, format='<level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
@@ -31,6 +28,7 @@ class PipelineImage:
 
         # init path image
         make_dir(self.path_image)
+        print(f'[Image Cleaning] {mode}')
 
     def download_images_request(self):
         def _download(arr: dict):
@@ -102,7 +100,7 @@ class PipelineImage:
             f'{self.mode}_exists': [True] * len(lst_file),
         })
 
-        logger.info(f'[Data] Load Images: {df.shape}')
+        print(f'-> Load Images: {df.shape}')
         return df
 
     def run(
@@ -115,7 +113,7 @@ class PipelineImage:
         query = f"""select * from data"""
         df = duckdb.sql(query).pl()
         df.write_parquet(self.path_image / f'{self.mode}_0.parquet')
-        logger.info(f'[Data] Base Data {self.mode}: {df.shape}')
+        print(f'-> Base Data {self.mode}: {df.shape}')
 
         # download
         if download:
@@ -126,7 +124,7 @@ class PipelineImage:
 
         # errors image
         if data_img.shape[0] == 0:
-            logger.info(f'[Data] Images Errors {self.mode}: {data.shape}')
+            print(f'-> Images Errors {self.mode}: {data.shape}')
             return data, data_img
 
         # join
@@ -137,5 +135,5 @@ class PipelineImage:
             .join(data_img, on=f'{self.mode}_{self.col_img_download}', how='left')
             .filter(pl.col(f'{self.mode}_exists'))
         )
-        logger.info(f'[Data] Join Images {self.mode}: {data.shape}')
+        print(f'-> Join Images {self.mode}: {data.shape}')
         return data, data_img

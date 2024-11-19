@@ -1,6 +1,6 @@
 import torch
-from loguru import logger
 from PIL import Image
+from rich import print
 from torch.nn import functional as F
 from transformers import AutoProcessor, SiglipVisionModel
 from FlagEmbedding import BGEM3FlagModel
@@ -14,7 +14,7 @@ class Model:
         self.text_model = None
         self.img_processor = None
         self.img_model = None
-        logger.info(f'[Model] Run on: {self.device}')
+        print(f'[Model] Device: {self.device}')
 
     def get_img_model(self):
         """Get Image Model"""

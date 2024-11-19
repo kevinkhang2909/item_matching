@@ -6,11 +6,7 @@ from time import perf_counter
 from item_matching.func.utilities import make_dir, rm_all_folder
 from item_matching.pipeline.build_index_and_query import BuildIndexAndQuery, ConfigQuery
 from item_matching.pipeline.data_loading import DataEmbedding, ConfigEmbedding
-
-import sys
-from loguru import logger
-logger.remove()
-logger.add(sys.stdout, colorize=True, format='<level>{level}</level> | <cyan>{function}</cyan> | <level>{message}</level>')
+from rich import print
 
 
 class ModelInput(BaseModel):
@@ -65,19 +61,19 @@ class PipelineMatch:
             chunk_db = self.load_data(cat, 'db')
             chunk_q = self.load_data(cat, 'q')
 
-            logger.info(
+            print(
                 f"🐋 Start matching by [{self.record.MATCH_BY}] cat: {cat} {idx}/{len(self.lst_category)} - "
                 f"Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
             )
 
             if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
-                logger.info(f'Database/Query have no data')
+                print(f'Database/Query have no data')
                 continue
 
             cat = re.sub('/', '', cat)
             file_name = self.record.path_result / f'{cat}.parquet'
             if file_name.exists():
-                logger.info(f'File already exists: {file_name}')
+                print(f'File already exists: {file_name}')
                 continue
 
             # embeddings
@@ -99,5 +95,5 @@ class PipelineMatch:
                 rm_all_folder(self.record.ROOT_PATH / name)
 
         time_perf = perf_counter() - start
-        logger.success(f'🐋 Your files are ready, please find here: {self.record.path_result}')
+        print(f'🐋 Your files are ready, please find here: {self.record.path_result}')
         return {'time_perf': time_perf, 'path_result': self.record.path_result}
