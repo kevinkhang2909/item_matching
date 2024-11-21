@@ -2,7 +2,7 @@ from pathlib import Path
 import polars as pl
 import duckdb
 import orjson
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import subprocess
 import os
 import requests
@@ -95,12 +95,12 @@ class PipelineImage:
         lst_file = [orjson.loads(open(str(i), "r").read())['url'] for i in tqdm(lst_json, desc='Loading json in folder')]
         lst_img = [str(i) for i in tqdm(sorted(path.glob('*/*.jpg')), desc='Loading jpg in folder')]
         df = pl.DataFrame({
-            f'{self.mode}_{self.col_img_download}': lst_file,
-            f'{self.mode}_file_path': lst_img,
-            f'{self.mode}_exists': [True] * len(lst_file),
+            f'{self.col_img_download}': lst_file,
+            f'file_path': lst_img,
+            f'exists': [True] * len(lst_file),
         })
 
-        print(f'-> Load Images: {df.shape}')
+        print(f'-> Load Images Data from folder: {df.shape}')
         return df
 
     def run(
@@ -130,10 +130,12 @@ class PipelineImage:
         # join
         data = (
             df
-            .pipe(PipelineText.clean_text)
-            .select(pl.all().name.prefix(f'{self.mode}_'))
-            .join(data_img, on=f'{self.mode}_{self.col_img_download}', how='left')
-            .filter(pl.col(f'{self.mode}_exists'))
+            .pipe(PipelineText().clean_text)
+            .join(data_img, on=f'{self.col_img_download}', how='left')
+            .filter(pl.col(f'exists'))
         )
-        print(f'-> Join Images {self.mode}: {data.shape}')
+        if self.mode != '':
+            data = data.select(pl.all().name.prefix(f'{self.mode}_'))
+
+        print(f'-> Clean Images Data {self.mode}: {data.shape}')
         return data, data_img

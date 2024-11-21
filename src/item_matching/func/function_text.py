@@ -1,7 +1,7 @@
 import polars as pl
 import duckdb
-from tqdm import tqdm
 from core_eda import TextEDA
+from tqdm.auto import tqdm
 from rich import print
 
 
@@ -25,7 +25,8 @@ class PipelineText:
             df
             .pipe(PipelineText.clean_text)
             .drop_nulls(subset=key_col)
-            .select(pl.all().name.prefix(f'{self.mode}_'))
         )
-        print(f'-> Join Data {self.mode}: {df.shape}')
+        if self.mode != '':
+            df = df.select(pl.all().name.prefix(f'{self.mode}_'))
+        print(f'-> Cleaned Data {self.mode}: {df.shape}')
         return df

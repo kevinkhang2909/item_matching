@@ -1,7 +1,7 @@
 from time import perf_counter
 from sentence_transformers import SentenceTransformer
 from FlagEmbedding import BGEM3FlagModel
-from notebooks.benchmark.data_load import load
+from notebooks.benchmark_database.data_load import load
 import polars as pl
 from collections import defaultdict
 from pathlib import Path
@@ -47,7 +47,7 @@ def bge(texts: list):
     return estimated_time, embeddings.shape
 
 
-path = Path('/media/kevin/data_4t/Test/benchmark')
+path = Path('/media/kevin/data_4t/Test/benchmark_database')
 path_array = path / 'array'
 
 lst = df['q_item_name_clean'].to_list()

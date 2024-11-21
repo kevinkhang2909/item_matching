@@ -12,7 +12,7 @@ from data_load import load
 
 # init data
 df, col, _ = load()
-path = Path('/media/kevin/data_4t/Test/benchmark')
+path = Path('/media/kevin/data_4t/Test/benchmark_database')
 embeddings = np.load(path / 'array/bge.npy')
 df = df.with_columns(pl.Series(values=embeddings, name='vector'))
 

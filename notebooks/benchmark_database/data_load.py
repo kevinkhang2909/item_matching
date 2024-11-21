@@ -1,21 +1,18 @@
-from pathlib import Path
 import polars as pl
 import numpy as np
 from FlagEmbedding import BGEM3FlagModel
+from core_pro.ultilities import make_sync_folder
 
 
 def load():
-    path = Path('/media/kevin/data_4t/Test')
-    if str(Path.home()) == '/Users/kevinkhang':
-        path = Path.home() / 'Downloads/Data/Item_Matching_Test'
-    file = path / 'item_match.parquet'
+    path = make_sync_folder('Item_Matching_Test')
+    file = path / 'Description_Images.parquet'
 
     col = [
-        'q_item_id',
-        'q_level1_global_be_category',
-        'q_item_name',
-        'q_link_first_image',
-        'q_item_name_clean',
+        'item_id',
+        'level1_global_be_category',
+        'item_name',
+        'image_url',
     ]
     df = (
         pl.read_parquet(file)
