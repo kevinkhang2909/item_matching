@@ -17,14 +17,17 @@ with cat as (
         ,o.shop_id
         ,o.shop_name
         ,o.level1_global_be_category
+        ,o.level2_global_be_category
+        ,o.level3_global_be_category
+        ,m.cluster
     from
         mp_order.dwd_order_item_all_ent_df__vn_s0_live o
         left join cat m on m.level1_global = o.level1_global_be_category
     where
         o.grass_date = current_date - interval '1' day
-        and m.cluster = 'Fashion'
+        and m.cluster = '{0}'
     limit
-        10000
+        100000
 )
 select distinct
     o.*
