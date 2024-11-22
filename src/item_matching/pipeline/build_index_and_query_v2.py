@@ -41,12 +41,12 @@ class ConfigQuery(BaseModel):
     @computed_field
     @property
     def path_ds_inner(self) -> Path:
-        return self.ROOT_PATH / f'_ds'
+        return self.ROOT_PATH / f'ds'
 
     @computed_field
     @property
     def path_array_inner(self) -> Path:
-        return self.ROOT_PATH / f'_array'
+        return self.ROOT_PATH / f'array'
 
     @computed_field
     @property
