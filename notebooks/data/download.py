@@ -1,4 +1,5 @@
 import os, subprocess
+from pathlib import Path
 from rich import print
 import duckdb
 import polars as pl
@@ -9,12 +10,13 @@ from core_eda import EDA_Dataframe
 
 # download parquet
 path = make_sync_folder('Item_Matching_Test')
+path_sql = Path.home() / 'PycharmProjects/item_matching/notebooks/data/data.sql'
 
 for c in ['ELHA', 'Lifestyle', 'Fashion', 'FMCG']:
     file = path / f'data_sample_{c}.parquet'
     if not file.exists():
         print(f'Download {file.stem}')
-        sql = open('./data.sql').read().format(c)
+        sql = open(str(path_sql)).read().format(c)
         df = DataPipeLine(sql).run_presto_to_df(save_path=file)
     else:
         df = pl.read_parquet(file)
