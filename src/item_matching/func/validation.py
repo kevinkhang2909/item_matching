@@ -38,7 +38,7 @@ class UserData(BaseModel):
             data = duckdb.sql(f"select * from read_{self.FILE.suffix[1:]}('{self.FILE}') limit 10").pl()
             self.INPUT_COLUMNS = data.columns
         except Exception as errors:
-            return f"[UNKNOWN READING] Your file may be damaged **{self.MODE}**: {errors}"
+            return f"[UNKNOWN READING] Your **{self.MODE}** file may be damaged: {errors}"
 
     @computed_field
     @property
@@ -52,34 +52,22 @@ class UserData(BaseModel):
             )
             return message
 
-valid = UserData(
-    INPUT_COLUMNS=['item_name', 'level1_global_be_category', 'level2_global_be_category', 'level3_global_be_category'],
-    MATCH_BY='text',
-    FILE= Path('file.parquet'),
-)
-print(valid.read_data)
-print(valid.check_file_extension)
-print(valid.validation)
-
-valid = UserData(
-    INPUT_COLUMNS=['item_name', 'level1_global_be_category'],
-    MATCH_BY='image',
-    FILE= Path('file.parquet'),
-)
-print(valid.read_data)
-print(valid.check_file_extension)
-print(valid.validation)
-
-# Valid text matching
-# text_data = UserData(
-#     INPUT=['item_name', 'level1_global_be_category', 'level2_global_be_category', 'level3_global_be_category'],
-#     MATCH_BY='text'
-# ).validation
-# print(text_data)
+# valid = UserData(
+#     INPUT_COLUMNS=['item_name', 'level1_global_be_category', 'level2_global_be_category', 'level3_global_be_category'],
+#     MATCH_BY='text',
+#     FILE= Path('file.parquet'),
+#     MODE='db'
+# )
+# lst_valid = [valid.read_data, valid.validation, valid.check_file_extension]
+# mess_valid = '\n'.join([i for i in lst_valid if i])
+# print(mess_valid)
 #
-# # Valid image matching with image_url
-# image_data = UserData(
-#     INPUT=['item_name', 'level1_global_be_category'],
-#     MATCH_BY='image'
-# ).validation
-# print(image_data)
+# valid = UserData(
+#     INPUT_COLUMNS=['item_name', 'level1_global_be_category'],
+#     MATCH_BY='image',
+#     FILE= Path('file.parquet'),
+#     MODE='db'
+# )
+# lst_valid = [valid.read_data, valid.validation, valid.check_file_extension]
+# mess_valid = '\n'.join([i for i in lst_valid if i])
+# print(mess_valid)
