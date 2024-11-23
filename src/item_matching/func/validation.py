@@ -55,12 +55,12 @@ class UserData(BaseModel):
     @computed_field
     @property
     def summary(self) -> list:
-        dict_ = [
+        pipe = [
             self.read_data,
             self.validation,
             self.check_file_extension,
         ]
-        return dict_
+        return [i for i in pipe if i]
 
 
 valid = UserData(
