@@ -76,8 +76,8 @@ class DataEmbedding:
         # Process and save each chunk
         for i, idx in run.items():
             # Check if exists:
-            dataset_name = self.path_ds / f'{idx}'
-            array_name = self.path_array / f'{idx}.npy'
+            dataset_name = self.path_ds / f'{i}'
+            array_name = self.path_array / f'{i}.npy'
             if dataset_name.exists():
                 continue
 

@@ -126,7 +126,7 @@ class PipelineMatch:
                 MATCH_BY=self.MATCH_BY,
                 TOP_K=self.TOP_K
             )
-            cat = re.sub('/', '', cat)
+            cat = re.sub('/', '', cat)  # special characters
             build = BuildIndexAndQuery(
                 config=config,
                 file_export_name=cat,
