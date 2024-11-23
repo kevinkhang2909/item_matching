@@ -3,6 +3,7 @@ import duckdb
 from pathlib import Path
 from pydantic import BaseModel, Field, computed_field
 from tqdm import tqdm
+from rich import print
 from ..func.utilities import make_dir
 from ..func.post_processing import PostProcessing
 
@@ -46,7 +47,7 @@ class ReRank:
 
         # select cols
         total_cols = set(pl.read_parquet(self.file_text[0]).columns + pl.read_parquet(self.file_image[0]).columns)
-        patterns = ['item_name_clean', 'file_path', 'rnk', 'exists', 'score_dense_embed', 'score_image_embed']
+        patterns = ['item_name_clean', 'file_path', 'rnk', 'exists', 'score_text_embed', 'score_image_embed']
         select_cols = [col for col in total_cols if not any(pattern in col for pattern in patterns)]
         self.duckdb_cols = '\n, '.join([f'{i}' for i in select_cols])
 

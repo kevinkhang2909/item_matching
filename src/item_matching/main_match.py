@@ -4,8 +4,8 @@ import duckdb
 import re
 from time import perf_counter
 from core_pro.ultilities import rm_all_folder, make_dir
-from src.item_matching.pipeline.build_index_and_query_v2 import BuildIndexAndQuery, ConfigQuery
-from src.item_matching.pipeline.data_loading_v2 import DataEmbedding, ConfigEmbedding
+from .pipeline.build_index_and_query_v2 import BuildIndexAndQuery, ConfigQuery
+from .pipeline.data_loading_v2 import DataEmbedding, ConfigEmbedding
 from rich import print
 
 
