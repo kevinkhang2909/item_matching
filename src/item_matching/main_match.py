@@ -73,7 +73,8 @@ class PipelineMatch:
                 chunk_q = self._load_data(cat=cat, mode='q', file=self.PATH_Q)
 
                 print(
-                    f"🐋 Start matching by [{self.MATCH_BY}] cat: {cat} {idx}/{len(self.lst_category)} - "
+                    f"🐋 [MATCH BY {self.MATCH_BY}] 🐋 \n"
+                    f"Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category)} \n"
                     f"Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
                 )
 
@@ -102,7 +103,8 @@ class PipelineMatch:
                 chunk_df = self._load_data(cat=cat, mode='db', file=self.PATH_INNER)
 
                 print(
-                    f"🐋 Start matching by [{self.MATCH_BY}] cat: {cat} {idx}/{len(self.lst_category)} - "
+                    f"🐋 [MATCH BY {self.MATCH_BY}] 🐋 \n"
+                    f"Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category)} \n"
                     f"Inner Data shape {chunk_df.shape}"
                 )
 

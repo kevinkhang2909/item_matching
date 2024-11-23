@@ -125,6 +125,7 @@ class BuildIndexAndQuery:
             load_from_disk(str(f))
             for f in sorted(self.path_ds_q.glob('*'), key=self.sort_key_ds)
         ])
+        print(f'[BuildIndex]: DB shape {dataset_db.shape}, Q shape {dataset_q.shape}')
         return dataset_db, dataset_q
 
     def load_dataset_inner(self):
@@ -140,6 +141,7 @@ class BuildIndexAndQuery:
 
         # Add index
         dataset_db.load_faiss_index(f'db{self.col_embedding}', self.file_index)
+        print(f'[BuildIndex]: DB shape {dataset_db.shape}, Q shape {dataset_q.shape}')
         return dataset_db, dataset_q
 
     def query(self):
