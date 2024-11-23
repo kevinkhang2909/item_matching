@@ -69,12 +69,13 @@ class BuildIndexAndQuery:
             inner: bool = False,
             explode: bool = True
     ):
-        self.sort_key = lambda x: int(x.stem.split('_')[1])
         self.TOP_K = config.TOP_K
         self.QUERY_SIZE = config.QUERY_SIZE
         self.col_embedding = config.col_embedding
         self.inner = inner
         self.explode = explode
+        self.sort_key_ds = lambda x: int(x.stem)
+        self.sort_key_result = lambda x: int(x.stem.split('_')[1])
 
         # index
         self.path_index = config.path_index
@@ -113,7 +114,7 @@ class BuildIndexAndQuery:
         # Dataset database shard
         dataset_db = concatenate_datasets([
             load_from_disk(str(f))
-            for f in sorted(self.path_ds_db.glob('*'), key=self.sort_key)
+            for f in sorted(self.path_ds_db.glob('*'), key=self.sort_key_ds)
         ])
 
         # Add index
@@ -122,7 +123,7 @@ class BuildIndexAndQuery:
         # Dataset query shard
         dataset_q = concatenate_datasets([
             load_from_disk(str(f))
-            for f in sorted(self.path_ds_q.glob('*'), key=self.sort_key)
+            for f in sorted(self.path_ds_q.glob('*'), key=self.sort_key_ds)
         ])
         return dataset_db, dataset_q
 
@@ -130,7 +131,7 @@ class BuildIndexAndQuery:
         # Load dataset shard
         dataset = concatenate_datasets([
             load_from_disk(str(f))
-            for f in sorted(self.path_ds_inner.glob('*'), key=self.sort_key)
+            for f in sorted(self.path_ds_inner.glob('*'), key=self.sort_key_ds)
         ])
         dataset_db, dataset_q = None, None
         for i in dataset.column_names:
@@ -192,12 +193,12 @@ class BuildIndexAndQuery:
             df_score = (
                 pl.concat([
                     pl.read_parquet(f)
-                    for f in sorted(self.path_result.glob('score*.parquet'), key=self.sort_key)])
+                    for f in sorted(self.path_result.glob('score*.parquet'), key=self.sort_key_result)])
             )
             df_result = (
                 pl.concat([
                     pl.read_parquet(f)
-                    for f in sorted(self.path_result.glob('result*.parquet'), key=self.sort_key)])
+                    for f in sorted(self.path_result.glob('result*.parquet'), key=self.sort_key_result)])
             )
             df_match = pl.concat([dataset_q.to_polars(), df_result, df_score], how='horizontal')
             if self.explode:
