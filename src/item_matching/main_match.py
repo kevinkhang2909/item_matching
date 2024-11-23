@@ -66,12 +66,15 @@ class PipelineMatch:
     def run(self):
         # run
         start = perf_counter()
-        path_file_result = None
         for idx, cat in enumerate(self.lst_category):
+            # logging
+            cat_log = f'[dark_orange]{cat}[/]'
+            batch_log = f'{idx}/{len(self.lst_category) - 1}'
+
             # check file exists
             file_result_final = self.PATH_RESULT / f'{cat}.parquet'
             if file_result_final.exists():
-                print(f'[PIPELINE] File {cat} already exists')
+                print(f'[PIPELINE] File {cat_log} already exists')
                 continue
 
             # chunk checking
@@ -81,7 +84,7 @@ class PipelineMatch:
 
                 print(
                     f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
-                    f"-> Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category) - 1} \n"
+                    f"-> Category: {cat_log} {batch_log} \n"
                     f"-> Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
                 )
 
@@ -111,7 +114,7 @@ class PipelineMatch:
 
                 print(
                     f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
-                    f"-> Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category)} \n"
+                    f"-> Category: {cat_log} {batch_log} \n"
                     f"-> Inner Data shape {chunk_df.shape}"
                 )
 
@@ -143,7 +146,7 @@ class PipelineMatch:
                 explode=self.EXPLODE
             )
             build.build()
-            path_file_result = build.query()
+            build.query()
 
             folder_list = ['index', 'result', 'db_array', 'db_ds', 'q_array', 'q_ds', 'array', 'ds']
             for name in folder_list:
@@ -152,6 +155,6 @@ class PipelineMatch:
         time_perf = perf_counter() - start
         print(
             f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
-            f'-> Your files are ready, please find here: {path_file_result}'
+            f'-> Your files are ready, please find here: {self.PATH_RESULT}'
         )
-        return {'time_perf': time_perf, 'path_result': path_file_result}
+        return {'time_perf': time_perf, 'path_result': self.PATH_RESULT}
