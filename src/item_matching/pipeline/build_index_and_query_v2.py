@@ -55,7 +55,14 @@ class ConfigQuery(BaseModel):
 
     @computed_field
     @property
-    def path_result(self) -> Path:
+    def path_result_query_score(self) -> Path:
+        path_result = self.ROOT_PATH / f'result'
+        make_dir(path_result)
+        return path_result
+
+    @computed_field
+    @property
+    def path_result_final(self) -> Path:
         path_result = self.ROOT_PATH / f'result_match_{self.MATCH_BY}'
         make_dir(path_result)
         return path_result
@@ -93,8 +100,9 @@ class BuildIndexAndQuery:
         }
 
         # result
-        self.path_result = config.path_result
-        self.file_result = self.path_result / f'{file_export_name}.parquet'
+        self.path_result_query_score = config.path_result_query_score
+        self.path_result_final = config.path_result_final
+        self.file_export_final = self.path_result_final / f'{file_export_name}.parquet'
 
     def build(self):
         # Build index
@@ -139,7 +147,7 @@ class BuildIndexAndQuery:
 
     def query(self):
         # Check file exists
-        if not self.file_result.exists():
+        if not self.file_export_final.exists():
             # Load dataset
             dataset_db, dataset_q = self.load_dataset()
 
@@ -148,8 +156,8 @@ class BuildIndexAndQuery:
             num_batches = len(run)
             for i, val in run.items():
                 # init
-                file_name_result = self.path_result / f'result_{i}.parquet'
-                file_name_score = self.path_result / f'score_{i}.parquet'
+                file_name_result = self.path_result_query_score / f'result_{i}.parquet'
+                file_name_score = self.path_result_query_score / f'score_{i}.parquet'
                 if file_name_result.exists():
                     continue
 
@@ -170,7 +178,7 @@ class BuildIndexAndQuery:
                 # track errors
                 if df_result.shape[0] == 0:
                     print(f"[red]No matches found for {i}[/]")
-                    return pl.DataFrame()
+                    continue
 
                 dict_ = {f'score_{self.col_embedding}': [list(np.round(arr, 6)) for arr in score]}
                 df_score = pl.DataFrame(dict_)
@@ -188,12 +196,12 @@ class BuildIndexAndQuery:
             df_score = (
                 pl.concat([
                     pl.read_parquet(f)
-                    for f in sorted(self.path_result.glob('score*.parquet'), key=self.sort_key_result)])
+                    for f in sorted(self.path_result_query_score.glob('score*.parquet'), key=self.sort_key_result)])
             )
             df_result = (
                 pl.concat([
                     pl.read_parquet(f)
-                    for f in sorted(self.path_result.glob('result*.parquet'), key=self.sort_key_result)])
+                    for f in sorted(self.path_result_query_score.glob('result*.parquet'), key=self.sort_key_result)])
             )
 
             df_match = pl.concat([dataset_q.to_polars(), df_result, df_score], how='horizontal')
@@ -201,7 +209,8 @@ class BuildIndexAndQuery:
                 col_explode = [i for i in df_match.columns if search('db|score', i)]
                 df_match = df_match.explode(col_explode)
 
-            df_match.write_parquet(self.file_result)
+            df_match.write_parquet(self.file_export_final)
         else:
-            print(f'[Match] File {self.file_result.stem} already exists')
-        return self.file_result
+            print(f'File {self.file_export_final} already exists')
+
+        return self.path_result_final
