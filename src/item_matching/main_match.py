@@ -108,7 +108,7 @@ class PipelineMatch:
                     f"-> Inner Data shape {chunk_df.shape}"
                 )
 
-                if chunk_df.shape[0] == 0:
+                if chunk_df.shape[0] < 1:
                     print(f'Database/Query have no data')
                     continue
 
