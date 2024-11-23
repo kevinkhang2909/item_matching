@@ -138,7 +138,12 @@ class PipelineMatch:
             build.build()
             path_file_result = build.query()
 
-            for name in ['index', f'result_match_{self.MATCH_BY}', 'db_array', 'db_ds', 'q_array', 'q_ds']:
+            folder_list = [
+                'index', f'result_match_{self.MATCH_BY}',
+                'db_array', 'db_ds', 'q_array', 'q_ds',
+                'array', 'ds'
+            ]
+            for name in folder_list:
                 rm_all_folder(self.ROOT_PATH / name)
 
         time_perf = perf_counter() - start

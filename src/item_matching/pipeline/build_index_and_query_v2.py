@@ -100,6 +100,7 @@ class BuildIndexAndQuery:
         # Build index
         start = perf_counter()
         if not self.file_index.exists():
+            print(f'[BuildIndex] Start')
             build_index(
                 str(self.path_array_db),
                 index_path=str(self.file_index),
