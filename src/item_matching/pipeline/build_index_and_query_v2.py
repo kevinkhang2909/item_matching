@@ -86,9 +86,11 @@ class BuildIndexAndQuery:
         self.path_array_db = config.path_array_inner if inner else config.path_array_db
 
         # ds
-        self.path_ds_db = config.path_ds_db
-        self.path_ds_q = config.path_ds_q
-        self.path_ds_inner = config.path_ds_inner
+        self.dataset_dict = {
+            'db_ds_path': config.path_ds_db,
+            'q_ds_path': config.path_ds_q,
+            'inner_ds_path': config.path_ds_inner,
+        }
 
         # result
         self.path_result = config.path_result
@@ -111,43 +113,34 @@ class BuildIndexAndQuery:
             print(f'[BuildIndex] Index is existed')
 
     def load_dataset(self):
-        # Dataset database shard
-        dataset_db = concatenate_datasets([
-            load_from_disk(str(f))
-            for f in sorted(self.path_ds_db.glob('*'), key=self.sort_key_ds)
-        ])
+        dataset = {}
+        if self.inner:
+            for i in ['db', 'q']:
+                dataset[i] = concatenate_datasets([
+                    load_from_disk(str(f))
+                    for f in sorted(self.dataset_dict[f'inner_ds_path'].glob('*'), key=self.sort_key_ds)
+                ])
+
+                for c in dataset[i].column_names:
+                    if c != self.col_embedding:
+                        dataset[i] = dataset[i].rename_column(i, f'{i}_{c}')
+
+        else:
+            for i in ['db', 'q']:
+                dataset[i] = concatenate_datasets([
+                    load_from_disk(str(f))
+                    for f in sorted(self.dataset_dict[f'{i}_ds_path'].glob('*'), key=self.sort_key_ds)
+                ])
 
         # Add index
-        dataset_db.load_faiss_index(self.col_embedding, self.file_index)
-
-        # Dataset query shard
-        dataset_q = concatenate_datasets([
-            load_from_disk(str(f))
-            for f in sorted(self.path_ds_q.glob('*'), key=self.sort_key_ds)
-        ])
-        return dataset_db, dataset_q
-
-    def load_dataset_inner(self):
-        # Load dataset shard
-        dataset = concatenate_datasets([
-            load_from_disk(str(f))
-            for f in sorted(self.path_ds_inner.glob('*'), key=self.sort_key_ds)
-        ])
-        dataset_db, dataset_q = None, None
-        for i in dataset.column_names:
-            if i != self.col_embedding:
-                dataset_db = dataset.rename_column(i, f'db_{i}')
-                dataset_q = dataset.rename_column(i, f'q_{i}')
-
-        # Add index
-        dataset_db.load_faiss_index(self.col_embedding, self.file_index)
-        return dataset_db, dataset_q
+        dataset['db'].load_faiss_index(self.col_embedding, self.file_index)
+        return dataset['db'], dataset['q']
 
     def query(self):
         # Check file exists
         if not self.file_result.exists():
             # Load dataset
-            dataset_db, dataset_q = self.load_dataset_inner() if self.inner else self.load_dataset()
+            dataset_db, dataset_q = self.load_dataset()
 
             # Batch query
             run = create_batch_index(len(dataset_q), self.QUERY_SIZE)
@@ -201,9 +194,6 @@ class BuildIndexAndQuery:
                     pl.read_parquet(f)
                     for f in sorted(self.path_result.glob('result*.parquet'), key=self.sort_key_result)])
             )
-            print(dataset_q.to_polars().columns)
-            print(df_result.columns)
-            print(df_score.columns)
 
             df_match = pl.concat([dataset_q.to_polars(), df_result, df_score], how='horizontal')
             if self.explode:
