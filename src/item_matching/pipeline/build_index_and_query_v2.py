@@ -125,7 +125,6 @@ class BuildIndexAndQuery:
             load_from_disk(str(f))
             for f in sorted(self.path_ds_q.glob('*'), key=self.sort_key_ds)
         ])
-        print(f'[BuildIndex] DB shape {dataset_db.shape}, Q shape {dataset_q.shape}')
         return dataset_db, dataset_q
 
     def load_dataset_inner(self):
@@ -136,12 +135,12 @@ class BuildIndexAndQuery:
         ])
         dataset_db, dataset_q = None, None
         for i in dataset.column_names:
-            dataset_db = dataset.rename_column(i, f'db{i}')
-            dataset_q = dataset.rename_column(i, f'q{i}')
+            if i != self.col_embedding:
+                dataset_db = dataset.rename_column(i, f'db_{i}')
+                dataset_q = dataset.rename_column(i, f'q_{i}')
 
         # Add index
-        dataset_db.load_faiss_index(f'db{self.col_embedding}', self.file_index)
-        print(f'[BuildIndex] DB shape {dataset_db.shape}, Q shape {dataset_q.shape}')
+        dataset_db.load_faiss_index(f'db_{self.col_embedding}', self.file_index)
         return dataset_db, dataset_q
 
     def query(self):
@@ -163,7 +162,6 @@ class BuildIndexAndQuery:
                 # query
                 start_idx, end_idx = val[0], val[-1]
                 start_batch = perf_counter()
-                print(dataset_q[start_idx:end_idx])
                 score, result = dataset_db.get_nearest_examples_batch(
                     self.col_embedding,
                     dataset_q[start_idx:end_idx][self.col_embedding],
@@ -177,7 +175,7 @@ class BuildIndexAndQuery:
 
                 # track errors
                 if df_result.shape[0] == 0:
-                    print(f"No matches found for {i}")
+                    print(f"[red]No matches found for {i}[/]")
                     return pl.DataFrame()
 
                 dict_ = {f'score_{self.col_embedding}': [list(np.round(arr, 6)) for arr in score]}
@@ -210,5 +208,5 @@ class BuildIndexAndQuery:
 
             df_match.write_parquet(self.file_result)
         else:
-            print(f'[MATCH] File {self.file_result.stem} already exists')
+            print(f'[Match] File {self.file_result.stem} already exists')
         return self.file_result
