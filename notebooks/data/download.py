@@ -40,7 +40,7 @@ for c in ['ELHA', 'Lifestyle', 'Fashion', 'FMCG']:
 
     path_image = path / f'download_img_{c}'
     make_dir(path_image)
-    folder = path_image / f'img'
+    folder = path_image / f'img_'
     if not folder.exists():
         os.chdir(str(path_image))
         command = (

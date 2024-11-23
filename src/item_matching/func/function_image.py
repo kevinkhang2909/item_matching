@@ -18,11 +18,11 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 class PipelineImage:
     def __init__(
             self,
-            path: Path,
+            path_image: Path,
             mode: str = '',
             col_img_download: str = 'image_url',
     ):
-        self.path_image = path / 'download_img'
+        self.path_image = path_image
         self.col_img_download = col_img_download
         self.mode = mode
 
