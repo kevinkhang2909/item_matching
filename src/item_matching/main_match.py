@@ -74,8 +74,8 @@ class PipelineMatch:
 
                 print(
                     f"🐋 [MATCH BY {self.MATCH_BY}] 🐋 \n"
-                    f"Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category)} \n"
-                    f"Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
+                    f"-> Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category)} \n"
+                    f"-> Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
                 )
 
                 if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
@@ -104,8 +104,8 @@ class PipelineMatch:
 
                 print(
                     f"🐋 [MATCH BY {self.MATCH_BY}] 🐋 \n"
-                    f"Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category)} \n"
-                    f"Inner Data shape {chunk_df.shape}"
+                    f"-> Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category)} \n"
+                    f"-> Inner Data shape {chunk_df.shape}"
                 )
 
                 if chunk_df.shape[0] == 0:

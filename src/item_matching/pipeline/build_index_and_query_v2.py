@@ -125,7 +125,7 @@ class BuildIndexAndQuery:
             load_from_disk(str(f))
             for f in sorted(self.path_ds_q.glob('*'), key=self.sort_key_ds)
         ])
-        print(f'[BuildIndex]: DB shape {dataset_db.shape}, Q shape {dataset_q.shape}')
+        print(f'[BuildIndex] DB shape {dataset_db.shape}, Q shape {dataset_q.shape}')
         return dataset_db, dataset_q
 
     def load_dataset_inner(self):
@@ -141,7 +141,7 @@ class BuildIndexAndQuery:
 
         # Add index
         dataset_db.load_faiss_index(f'db{self.col_embedding}', self.file_index)
-        print(f'[BuildIndex]: DB shape {dataset_db.shape}, Q shape {dataset_q.shape}')
+        print(f'[BuildIndex] DB shape {dataset_db.shape}, Q shape {dataset_q.shape}')
         return dataset_db, dataset_q
 
     def query(self):
@@ -163,6 +163,7 @@ class BuildIndexAndQuery:
                 # query
                 start_idx, end_idx = val[0], val[-1]
                 start_batch = perf_counter()
+                print(dataset_q[start_idx:end_idx])
                 score, result = dataset_db.get_nearest_examples_batch(
                     self.col_embedding,
                     dataset_q[start_idx:end_idx][self.col_embedding],
