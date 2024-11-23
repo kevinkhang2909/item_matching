@@ -151,15 +151,15 @@ class BuildIndexAndQuery:
             # Batch query
             run = create_batch_index(len(dataset_q), self.QUERY_SIZE)
             num_batches = len(run)
-            for i, idx in run.items():
+            for i, val in run.items():
                 # init
-                file_name_result = self.path_result / f'result_{idx}.parquet'
-                file_name_score = self.path_result / f'score_{idx}.parquet'
+                file_name_result = self.path_result / f'result_{i}.parquet'
+                file_name_score = self.path_result / f'score_{i}.parquet'
                 if file_name_result.exists():
                     continue
 
                 # query
-                start_idx, end_idx = idx[0], idx[-1]
+                start_idx, end_idx = val[0], val[-1]
                 start_batch = perf_counter()
                 score, result = dataset_db.get_nearest_examples_batch(
                     self.col_embedding,
@@ -174,7 +174,7 @@ class BuildIndexAndQuery:
 
                 # track errors
                 if df_result.shape[0] == 0:
-                    print(f"No matches found for {idx}")
+                    print(f"No matches found for {i}")
                     return pl.DataFrame()
 
                 dict_ = {f'score_{self.col_embedding}': [list(np.round(arr, 6)) for arr in score]}
