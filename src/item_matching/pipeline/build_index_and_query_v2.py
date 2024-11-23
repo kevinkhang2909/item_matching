@@ -140,7 +140,7 @@ class BuildIndexAndQuery:
                 dataset_q = dataset.rename_column(i, f'q_{i}')
 
         # Add index
-        dataset_db.load_faiss_index(f'db_{self.col_embedding}', self.file_index)
+        dataset_db.load_faiss_index(self.col_embedding, self.file_index)
         return dataset_db, dataset_q
 
     def query(self):
