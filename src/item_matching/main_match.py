@@ -85,7 +85,7 @@ class PipelineMatch:
                     f"-> Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
                 )
 
-                if chunk_q.shape[0] < 1 or chunk_db.shape[0] < 1:
+                if chunk_q.shape[0] < 2 or chunk_db.shape[0] < 2:
                     print(f'[PIPELINE] Database/Query have not enough data')
                     continue
 
@@ -115,7 +115,7 @@ class PipelineMatch:
                     f"-> Inner Data shape {chunk_df.shape}"
                 )
 
-                if chunk_df.shape[0] < 1:
+                if chunk_df.shape[0] < 2:
                     print(f'[PIPELINE] Database/Query have no data')
                     continue
 
