@@ -1,5 +1,5 @@
 from pydantic import BaseModel, computed_field, Field
-from typing import List
+from typing import List, Any
 from pathlib import Path
 import duckdb
 from rich import print
@@ -52,22 +52,29 @@ class UserData(BaseModel):
             )
             return message
 
-# valid = UserData(
-#     INPUT_COLUMNS=['item_name', 'level1_global_be_category', 'level2_global_be_category', 'level3_global_be_category'],
-#     MATCH_BY='text',
-#     FILE= Path('file.parquet'),
-#     MODE='db'
-# )
-# lst_valid = [valid.read_data, valid.validation, valid.check_file_extension]
-# mess_valid = '\n'.join([i for i in lst_valid if i])
-# print(mess_valid)
-#
-# valid = UserData(
-#     INPUT_COLUMNS=['item_name', 'level1_global_be_category'],
-#     MATCH_BY='image',
-#     FILE= Path('file.parquet'),
-#     MODE='db'
-# )
-# lst_valid = [valid.read_data, valid.validation, valid.check_file_extension]
-# mess_valid = '\n'.join([i for i in lst_valid if i])
-# print(mess_valid)
+    @computed_field
+    @property
+    def summary(self) -> list:
+        dict_ = [
+            self.read_data,
+            self.validation,
+            self.check_file_extension,
+        ]
+        return dict_
+
+
+valid = UserData(
+    INPUT_COLUMNS=['item_name', 'level1_global_be_category', 'level2_global_be_category', 'level3_global_be_category'],
+    MATCH_BY='text',
+    FILE= Path('file.parquet'),
+    MODE='db'
+).summary
+print(valid)
+
+valid = UserData(
+    INPUT_COLUMNS=['item_name', 'level1_global_be_category'],
+    MATCH_BY='image',
+    FILE= Path('file.parquet'),
+    MODE='db'
+).summary
+print(valid)
