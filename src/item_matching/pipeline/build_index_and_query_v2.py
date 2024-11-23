@@ -201,6 +201,10 @@ class BuildIndexAndQuery:
                     pl.read_parquet(f)
                     for f in sorted(self.path_result.glob('result*.parquet'), key=self.sort_key_result)])
             )
+            print(dataset_q.to_polars().columns)
+            print(df_result.columns)
+            print(df_score.columns)
+
             df_match = pl.concat([dataset_q.to_polars(), df_result, df_score], how='horizontal')
             if self.explode:
                 col_explode = [i for i in df_match.columns if search('db|score', i)]
