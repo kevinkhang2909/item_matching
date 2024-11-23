@@ -123,7 +123,7 @@ class BuildIndexAndQuery:
 
                 for c in dataset[i].column_names:
                     if c != self.col_embedding:
-                        dataset[i] = dataset[i].rename_column(i, f'{i}_{c}')
+                        dataset[i] = dataset[i].rename_column(c, f'{i}_{c}')
 
         else:
             for i in ['db', 'q']:
