@@ -146,71 +146,65 @@ class BuildIndexAndQuery:
         return dataset['db'], dataset['q']
 
     def query(self):
-        # Check file exists
-        if not self.file_export_final.exists():
-            # Load dataset
-            dataset_db, dataset_q = self.load_dataset()
+        # Load dataset
+        dataset_db, dataset_q = self.load_dataset()
 
-            # Batch query
-            run = create_batch_index(len(dataset_q), self.QUERY_SIZE)
-            num_batches = len(run)
-            for i, val in run.items():
-                # init
-                file_name_result = self.path_result_query_score / f'result_{i}.parquet'
-                file_name_score = self.path_result_query_score / f'score_{i}.parquet'
-                if file_name_result.exists():
-                    continue
+        # Batch query
+        run = create_batch_index(len(dataset_q), self.QUERY_SIZE)
+        num_batches = len(run)
+        for i, val in run.items():
+            # init
+            file_name_result = self.path_result_query_score / f'result_{i}.parquet'
+            file_name_score = self.path_result_query_score / f'score_{i}.parquet'
+            if file_name_result.exists():
+                continue
 
-                # query
-                start_idx, end_idx = val[0], val[-1]
-                start_batch = perf_counter()
-                score, result = dataset_db.get_nearest_examples_batch(
-                    self.col_embedding,
-                    dataset_q[start_idx:end_idx][self.col_embedding],
-                    k=self.TOP_K,
-                )
-                # export
-                for arr in result:
-                    del arr[self.col_embedding]  # prevent memory leaks
-                df_result = pl.DataFrame(result)
-                df_result.write_parquet(file_name_result)
-
-                # track errors
-                if df_result.shape[0] == 0:
-                    print(f"[red]No matches found for {i}[/]")
-                    continue
-
-                dict_ = {f'score_{self.col_embedding}': [list(np.round(arr, 6)) for arr in score]}
-                df_score = pl.DataFrame(dict_)
-                df_score.write_parquet(file_name_score)
-
-                # log
-                end = perf_counter() - start_batch
-                print(f"[Query] Batch {i}/{num_batches - 1} match result shape: {df_result.shape} {end:,.2f}s")
-                del score, result, df_score, df_result
-
-            # Post process
-            dataset_q = dataset_q.remove_columns(self.col_embedding)  # prevent polars issues
-            del dataset_db
-
-            df_score = (
-                pl.concat([
-                    pl.read_parquet(f)
-                    for f in sorted(self.path_result_query_score.glob('score*.parquet'), key=self.sort_key_result)])
+            # query
+            start_idx, end_idx = val[0], val[-1]
+            start_batch = perf_counter()
+            score, result = dataset_db.get_nearest_examples_batch(
+                self.col_embedding,
+                dataset_q[start_idx:end_idx][self.col_embedding],
+                k=self.TOP_K,
             )
-            df_result = (
-                pl.concat([
-                    pl.read_parquet(f)
-                    for f in sorted(self.path_result_query_score.glob('result*.parquet'), key=self.sort_key_result)])
-            )
+            # export
+            for arr in result:
+                del arr[self.col_embedding]  # prevent memory leaks
+            df_result = pl.DataFrame(result)
+            df_result.write_parquet(file_name_result)
 
-            df_match = pl.concat([dataset_q.to_polars(), df_result, df_score], how='horizontal')
-            if self.explode:
-                col_explode = [i for i in df_match.columns if search('db|score', i)]
-                df_match = df_match.explode(col_explode)
+            # track errors
+            if df_result.shape[0] == 0:
+                print(f"[red]No matches found for {i}[/]")
+                continue
 
-            df_match.write_parquet(self.file_export_final)
-        else:
-            print(f'File {self.file_export_final} already exists')
+            dict_ = {f'score_{self.col_embedding}': [list(np.round(arr, 6)) for arr in score]}
+            df_score = pl.DataFrame(dict_)
+            df_score.write_parquet(file_name_score)
 
-        return self.path_result_final
+            # log
+            end = perf_counter() - start_batch
+            print(f"[Query] Batch {i}/{num_batches - 1} match result shape: {df_result.shape} {end:,.2f}s")
+            del score, result, df_score, df_result
+
+        # Post process
+        dataset_q = dataset_q.remove_columns(self.col_embedding)  # prevent polars issues
+        del dataset_db
+
+        df_score = (
+            pl.concat([
+                pl.read_parquet(f)
+                for f in sorted(self.path_result_query_score.glob('score*.parquet'), key=self.sort_key_result)])
+        )
+        df_result = (
+            pl.concat([
+                pl.read_parquet(f)
+                for f in sorted(self.path_result_query_score.glob('result*.parquet'), key=self.sort_key_result)])
+        )
+
+        df_match = pl.concat([dataset_q.to_polars(), df_result, df_score], how='horizontal')
+        if self.explode:
+            col_explode = [i for i in df_match.columns if search('db|score', i)]
+            df_match = df_match.explode(col_explode)
+
+        df_match.write_parquet(self.file_export_final)

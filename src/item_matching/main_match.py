@@ -37,6 +37,7 @@ class PipelineMatch:
         self.PATH_DB = record.PATH_DB
         self.PATH_INNER = record.PATH_INNER
         self.ROOT_PATH = record.ROOT_PATH
+        self.PATH_RESULT = record.path_result
 
         # config
         self.COL_CATEGORY = record.COL_CATEGORY
@@ -67,19 +68,25 @@ class PipelineMatch:
         start = perf_counter()
         path_file_result = None
         for idx, cat in enumerate(self.lst_category):
+            # check file exists
+            file_result_final = self.PATH_RESULT / f'{cat}.parquet'
+            if file_result_final.exists():
+                print(f'[PIPELINE] File {cat} already exists')
+                continue
+
             # chunk checking
             if not self.INNER:
                 chunk_db = self._load_data(cat=cat, mode='db', file=self.PATH_DB)
                 chunk_q = self._load_data(cat=cat, mode='q', file=self.PATH_Q)
 
                 print(
-                    f"🐋 [MATCH BY {self.MATCH_BY}] 🐋 \n"
+                    f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
                     f"-> Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category) - 1} \n"
                     f"-> Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
                 )
 
                 if chunk_q.shape[0] < 1 or chunk_db.shape[0] < 1:
-                    print(f'Database/Query have not enough data')
+                    print(f'[PIPELINE] Database/Query have not enough data')
                     continue
 
                 # embeddings
@@ -103,13 +110,13 @@ class PipelineMatch:
                 chunk_df = self._load_data(cat=cat, mode='db', file=self.PATH_INNER)
 
                 print(
-                    f"🐋 [MATCH BY {self.MATCH_BY}] 🐋 \n"
+                    f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
                     f"-> Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category)} \n"
                     f"-> Inner Data shape {chunk_df.shape}"
                 )
 
                 if chunk_df.shape[0] < 1:
-                    print(f'Database/Query have no data')
+                    print(f'[PIPELINE] Database/Query have no data')
                     continue
 
                 # embeddings
@@ -143,5 +150,8 @@ class PipelineMatch:
                 rm_all_folder(self.ROOT_PATH / name)
 
         time_perf = perf_counter() - start
-        print(f'🐋 Your files are ready, please find here: {path_file_result}')
+        print(
+            f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
+            f'-> Your files are ready, please find here: {path_file_result}'
+        )
         return {'time_perf': time_perf, 'path_result': path_file_result}
