@@ -84,7 +84,7 @@ class DataEmbedding:
             # Load Chunk
             start_idx, end_idx = idx[0], idx[-1]
             dataset_chunk = Dataset.from_polars(data[start_idx:end_idx])
-            print(f'[DataEmbedding] Shard [{i}/{num_chunks}]: start {start_idx:,.0f} end {end_idx:,.0f}')
+            print(f'[DataEmbedding] Shard [{i}/{num_chunks - 1}]: start {start_idx:,.0f} end {end_idx:,.0f}')
 
             # Process dataset
             if self.MATCH_BY == 'text':

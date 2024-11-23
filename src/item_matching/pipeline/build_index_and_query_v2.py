@@ -178,7 +178,7 @@ class BuildIndexAndQuery:
 
                 # log
                 end = perf_counter() - start_batch
-                print(f"[Query] Batch {i}/{num_batches} match result shape: {df_result.shape} {end:,.2f}s")
+                print(f"[Query] Batch {i}/{num_batches - 1} match result shape: {df_result.shape} {end:,.2f}s")
                 del score, result, df_score, df_result
 
             # Post process

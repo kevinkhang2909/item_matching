@@ -74,12 +74,12 @@ class PipelineMatch:
 
                 print(
                     f"🐋 [MATCH BY {self.MATCH_BY}] 🐋 \n"
-                    f"-> Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category)} \n"
+                    f"-> Category: [dark_orange]{cat}[/] {idx}/{len(self.lst_category) - 1} \n"
                     f"-> Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
                 )
 
-                if chunk_q.shape[0] == 0 or chunk_db.shape[0] == 0:
-                    print(f'Database/Query have no data')
+                if chunk_q.shape[0] < 1 or chunk_db.shape[0] < 1:
+                    print(f'Database/Query have not enough data')
                     continue
 
                 # embeddings
