@@ -15,7 +15,7 @@ class ReRankConfig(BaseModel):
     @computed_field
     @property
     def path_result(self) -> Path:
-        path_result = self.path_text_result.parent / 'result_rerank'
+        path_result = self.path_text_result.parent / 'result_match_rerank'
         make_dir(path_result)
         return path_result
 
