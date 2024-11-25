@@ -63,18 +63,18 @@ class UserData(BaseModel):
         return [i for i in pipe if i]
 
 
-valid = UserData(
-    INPUT_COLUMNS=['item_name', 'level1_global_be_category', 'level2_global_be_category', 'level3_global_be_category'],
-    MATCH_BY='text',
-    FILE= Path('file.parquet'),
-    MODE='db'
-).summary
-print(valid)
-
-valid = UserData(
-    INPUT_COLUMNS=['item_name', 'level1_global_be_category'],
-    MATCH_BY='image',
-    FILE= Path('file.parquet'),
-    MODE='db'
-).summary
-print(valid)
+# valid = UserData(
+#     INPUT_COLUMNS=['item_name', 'level1_global_be_category', 'level2_global_be_category', 'level3_global_be_category'],
+#     MATCH_BY='text',
+#     FILE= Path('file.parquet'),
+#     MODE='db'
+# ).summary
+# print(valid)
+#
+# valid = UserData(
+#     INPUT_COLUMNS=['item_name', 'level1_global_be_category'],
+#     MATCH_BY='image',
+#     FILE= Path('file.parquet'),
+#     MODE='db'
+# ).summary
+# print(valid)

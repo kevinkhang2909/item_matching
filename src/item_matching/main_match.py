@@ -1,11 +1,12 @@
 from pathlib import Path
 from pydantic import BaseModel, Field, computed_field
+import polars as pl
 import duckdb
 import re
 from time import perf_counter
 from core_pro.ultilities import rm_all_folder, make_dir
-from .pipeline.build_index_and_query_v2 import BuildIndexAndQuery, ConfigQuery
-from .pipeline.data_loading_v2 import DataEmbedding, ConfigEmbedding
+from .pipeline.build_index_and_query import BuildIndexAndQuery, ConfigQuery
+from .pipeline.data_loading import DataEmbedding, ConfigEmbedding
 from rich import print
 
 
@@ -50,18 +51,25 @@ class PipelineMatch:
 
         self.lst_category = self._category_chunking()
 
-    def _category_chunking(self):
-        # read query file to extract category
-        query = f"select distinct q_{self.COL_CATEGORY} as category from read_parquet('{self.PATH_Q}')"
-        if self.INNER:
-            query = f"select distinct {self.COL_CATEGORY} as category from read_parquet('{self.PATH_INNER}')"
-        return duckdb.sql(query).pl()['category'].to_list()
+    def _category_chunking(self) -> list:
+        """
+        Read by duckdb to perform lazy load
+        """
+        query = f"""
+        select distinct {self.COL_CATEGORY} as category 
+        from read_parquet('{{0}}') 
+        where {self.COL_CATEGORY} is not null
+        """
+        query = query.format(self.PATH_INNER) if self.INNER else query.format(self.PATH_Q)
+        lst_category = duckdb.sql(query).pl()['category'].to_list()
+        return sorted(lst_category)
 
     def _load_data(self, cat: str, mode: str, file: Path):
-        query = f"select * from read_parquet('{file}') where {mode}_{self.COL_CATEGORY} = '{cat}'"
-        if self.INNER:
-            query = f"select * from read_parquet('{file}') where {self.COL_CATEGORY} = '{cat}'"
-        return duckdb.sql(query).pl()
+        """
+        Read by polars to prevent special characters in writing query
+        """
+        filter_ = pl.col(f'{self.COL_CATEGORY}') == cat if self.INNER else pl.col(f'{mode}_{self.COL_CATEGORY}') == cat
+        return pl.read_parquet(file).filter(filter_)
 
     def run(self):
         # run
@@ -78,15 +86,15 @@ class PipelineMatch:
                 continue
 
             # chunk checking
+            print('*' * 50)
+            print(
+                f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
+                f"-> Category: {cat_log} {batch_log} \n"
+            )
             if not self.INNER:
                 chunk_db = self._load_data(cat=cat, mode='db', file=self.PATH_DB)
                 chunk_q = self._load_data(cat=cat, mode='q', file=self.PATH_Q)
-
-                print(
-                    f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
-                    f"-> Category: {cat_log} {batch_log} \n"
-                    f"-> Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
-                )
+                print(f"-> Database shape {chunk_db.shape}, Query shape {chunk_q.shape}")
 
                 if chunk_q.shape[0] < 2 or chunk_db.shape[0] < 2:
                     print(f'[PIPELINE] Database/Query have not enough data')
@@ -111,12 +119,7 @@ class PipelineMatch:
 
             else:
                 chunk_df = self._load_data(cat=cat, mode='db', file=self.PATH_INNER)
-
-                print(
-                    f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
-                    f"-> Category: {cat_log} {batch_log} \n"
-                    f"-> Inner Data shape {chunk_df.shape}"
-                )
+                print(f"-> Inner Data shape {chunk_df.shape}")
 
                 if chunk_df.shape[0] < 2:
                     print(f'[PIPELINE] Database/Query have no data')

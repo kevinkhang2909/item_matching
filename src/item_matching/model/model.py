@@ -9,12 +9,13 @@ device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is
 
 
 class Model:
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
         self.device = device
         self.text_model = None
         self.img_processor = None
         self.img_model = None
-        print(f'[Model] Device: {self.device}')
+        if verbose:
+            print(f'[Model] Device: {self.device}')
 
     def get_img_model(self):
         """Get Image Model"""

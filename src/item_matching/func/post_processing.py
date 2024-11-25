@@ -1,6 +1,12 @@
 import duckdb
 from pathlib import Path
-from .utilities import make_dir
+from re import search
+from core_pro.ultilities import make_dir
+
+
+def data_explode_list(data):
+    col_explode = [i for i in data.columns if search('db|score', i)]
+    return data.explode(col_explode)
 
 
 class PostProcessing:
