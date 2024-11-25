@@ -23,7 +23,7 @@ class PostProcessing:
         q_col = sorted(filter(lambda x: 'q' in x and 'image_url' not in x, data.columns))
         db_col = sorted(filter(lambda x: 'db' in x and 'image_url' not in x, data.columns))
         score_col = sorted(filter(lambda x: 'score' in x, data.columns))
-        final_col = q_col + db_col + ['q_image_url', 'db_image_url'] + score_col
+        final_col = q_col + db_col + ['q_image_url', 'db_image_url'] + score_col + ['ranking']
         return final_col
 
     def query_add_url(self) -> str:

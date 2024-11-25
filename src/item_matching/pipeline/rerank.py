@@ -99,17 +99,14 @@ class ReRank:
             -- calculate mean, max rerank
             , cal_tab as (
                 select *
-                , case 
-                    when score_text is null then score_image 
-                    when score_image is null then score_text
-                    else (score_text + score_image) / 2 end as score_mean
+                , (coalesce(score_text, 0) + coalesce(score_image, 0)) / 2 as score_mean
 --                 , greatest(score_text, score_image) as score_max
                 from pivot_tab
                 where db_item_id != q_item_id
             )
             -- rank matches
             select * 
-            , row_number() OVER (PARTITION BY q_item_id ORDER BY score_mean desc) score_rerank
+            , row_number() OVER (PARTITION BY q_item_id ORDER BY score_mean desc) ranking
             from cal_tab
             """
         return duckdb.sql(query).pl()
