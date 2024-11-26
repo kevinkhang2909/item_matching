@@ -12,7 +12,7 @@ required_columns = {
     'level3_global_be_category'
 }
 
-class UserData(BaseModel):
+class ValidationUserData(BaseModel):
     MATCH_BY: str = Field(default='text')
     FILE: Path
     MODE: str = Field(default='')
