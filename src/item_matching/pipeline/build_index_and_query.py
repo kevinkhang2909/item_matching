@@ -147,8 +147,8 @@ class BuildIndexAndQuery:
     def query(self):
         # Load dataset
         dataset_db, dataset_q = self.load_dataset()
-        if len(dataset_db) < 2:
-            print(f'[BuildIndex] DB dataset < 2 rows')
+        if len(dataset_db) < 2 or len(dataset_q) < 2:
+            print(f'[BuildIndex] DB/Q dataset < 2 rows')
             return None
 
         # Batch query

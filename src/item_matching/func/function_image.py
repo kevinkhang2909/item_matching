@@ -9,7 +9,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageFile, UnidentifiedImageError
 from rich import print
-from item_matching.func.utilities import make_dir
+from core_pro.ultilities import make_dir
 from .function_text import PipelineText
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True

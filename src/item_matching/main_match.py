@@ -41,6 +41,7 @@ class PipelineMatch:
         self.PATH_RESULT = record.path_result
 
         # config
+
         self.COL_CATEGORY = record.COL_CATEGORY
         self.MATCH_BY = record.MATCH_BY
         self.SHARD_SIZE = record.SHARD_SIZE
@@ -56,11 +57,11 @@ class PipelineMatch:
         Read by duckdb to perform lazy load
         """
         query = f"""
-        select distinct {self.COL_CATEGORY} as category 
+        select distinct {{1}}{self.COL_CATEGORY} as category 
         from read_parquet('{{0}}') 
-        where {self.COL_CATEGORY} is not null
+        where {{1}}{self.COL_CATEGORY} is not null
         """
-        query = query.format(self.PATH_INNER) if self.INNER else query.format(self.PATH_Q)
+        query = query.format(self.PATH_INNER, '') if self.INNER else query.format(self.PATH_Q, 'q_')
         lst_category = duckdb.sql(query).pl()['category'].to_list()
         return sorted(lst_category)
 
@@ -115,7 +116,7 @@ class PipelineMatch:
                     SHARD_SIZE=self.SHARD_SIZE,
                     MATCH_BY=self.MATCH_BY
                 )
-                DataEmbedding(config_input=config).load(data=chunk_db)
+                DataEmbedding(config_input=config).load(data=chunk_q)
 
             else:
                 chunk_df = self._load_data(cat=cat, mode='db', file=self.PATH_INNER)
