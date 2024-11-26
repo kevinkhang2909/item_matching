@@ -5,18 +5,12 @@ import duckdb
 from rich import print
 
 
-required_columns = {
-    'item_name',
-    'level1_global_be_category',
-    'level2_global_be_category',
-    'level3_global_be_category'
-}
-
 class ValidationUserData(BaseModel):
     MATCH_BY: str = Field(default='text')
     FILE: Path
     MODE: str = Field(default='')
     INPUT_COLUMNS: List[str] = Field(default=[])
+    MATCH_CATEGORY: str = Field(default='')
 
     @computed_field
     @property
@@ -27,9 +21,21 @@ class ValidationUserData(BaseModel):
     @computed_field
     @property
     def required_columns(self) -> set:
+        category = {
+            'item_name',
+            'level1_global_be_category',
+            'level2_global_be_category',
+            'level3_global_be_category'
+        }
+        required_columns = ['item_name']
+
+        lv_index = int(self.MATCH_CATEGORY.split('_')[0][-1])
+        category = category[:lv_index]
+
+        required_columns += category
         if self.MATCH_BY == 'image':
-            required_columns.add('image_url')
-        return required_columns
+            required_columns += ['image_url']
+        return set(required_columns)
 
     @computed_field
     @property
