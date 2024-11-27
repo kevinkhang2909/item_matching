@@ -161,4 +161,4 @@ class PipelineMatch:
             f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
             f'-> Your files are ready, please find here: {self.PATH_RESULT}'
         )
-        return {'time_perf': time_perf, 'path_result': self.PATH_RESULT}
+        return {f'time_perf_{self.MATCH_BY}': time_perf}
