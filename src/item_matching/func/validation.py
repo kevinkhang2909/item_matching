@@ -10,7 +10,7 @@ class ValidationUserData(BaseModel):
     FILE: Path
     MODE: str = Field(default='')
     INPUT_COLUMNS: List[str] = Field(default=[])
-    MATCH_CATEGORY: str = Field(default='')
+    MATCH_CATEGORY: str = Field(default='level3_global_be_category')
 
     @computed_field
     @property
@@ -21,12 +21,11 @@ class ValidationUserData(BaseModel):
     @computed_field
     @property
     def required_columns(self) -> set:
-        category = {
-            'item_name',
+        category = [
             'level1_global_be_category',
             'level2_global_be_category',
             'level3_global_be_category'
-        }
+        ]
         required_columns = ['item_name']
 
         lv_index = int(self.MATCH_CATEGORY.split('_')[0][-1])
@@ -60,13 +59,13 @@ class ValidationUserData(BaseModel):
 
     @computed_field
     @property
-    def summary(self) -> list:
+    def summary(self) -> str:
         pipe = [
             self.read_data,
             self.validation,
             self.check_file_extension,
         ]
-        return [i for i in pipe if i]
+        return '\n'.join([i for i in pipe if i])
 
 
 # valid = UserData(
