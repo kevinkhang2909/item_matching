@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "item_matching"
-version = "0.0.78"
+version = "0.0.79"
 authors = [
   { name="Kevin Khang", email="kevinkhang2909@gmail.com" },
 ]
@@ -19,7 +19,6 @@ classifiers = [
 ]
 keywords = ["semantic, retrieval"]
 dependencies = [
-    'tqdm',
     'matplotlib',
     'emoji',
     'pyarrow',
@@ -31,13 +30,11 @@ dependencies = [
     'datasets',
     'scikit-learn',
     'FlagEmbedding',
-    'orjson',
     'sentencepiece',
     'img2dataset',
     'peft',
     'einops',
     'albumentations',
-    'rich',
 ]
 
 [project.urls]

@@ -5,14 +5,11 @@ import orjson
 from tqdm.auto import tqdm
 import subprocess
 import os
-import requests
-from concurrent.futures import ThreadPoolExecutor
-from PIL import Image, ImageFile, UnidentifiedImageError
 from rich import print
 from core_pro.ultilities import make_dir
+from core_pro import DownloadImage
 from .function_text import PipelineText
 
-ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 class PipelineImage:
@@ -28,48 +25,26 @@ class PipelineImage:
 
         # init path image
         make_dir(self.path_image)
-        print(f'[Image Cleaning] {mode}')
+        print(f"[Image Cleaning] {mode}")
 
     def download_images_request(self):
-        def _download(arr: dict):
-            # init
-            url = arr[self.col_img_download]
-            idx = arr['index']
-
-            # get
-            response = requests.get(url, stream=True)
-
-            # path
-            path_img = folder / f'{idx}.jpg'
-            path_json = folder / f'{idx}.json'
-
-            # resize and log json
-            if not path_img.exists():
-                try:
-                    # img
-                    img = Image.open(response.raw).convert('RGB').resize((224, 224))
-                    img.save(str(path_img))
-                    # json
-                    json_object = orjson.dumps(arr, option=orjson.OPT_INDENT_2).decode("utf-8")
-                    with open(str(path_json), 'w') as outfile:
-                        outfile.write(json_object)
-                except UnidentifiedImageError as e:
-                    pass
-
         # path
         folder = self.path_image / f'img_{self.mode}/00000'
         if not folder.exists():
             make_dir(folder)
             # read data
-            query = f"""select * from read_parquet('{self.path_image}/{self.mode}_0.parquet')"""
+            query = f"""
+            select *
+            , {self.col_img_download} url
+            from read_parquet('{self.path_image}/{self.mode}_0.parquet')
+            """
             df = (
                 duckdb.sql(query).pl()
                 .with_row_index()
             )
             # run
-            run = df.to_dicts()
-            with ThreadPoolExecutor() as executor:
-                list(tqdm(executor.map(_download, run), total=len(run)))
+            run = df[['index', self.col_img_download]].to_numpy().tolist()
+            DownloadImage().process_batch(run)
 
     def download_images_img2dataset(self):
         folder = self.path_image / f'img_{self.mode}'
