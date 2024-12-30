@@ -27,7 +27,7 @@ class PipelineImage:
         print(f'[Image Processing] {mode}')
 
     def load_images(self) -> pl.DataFrame:
-        lst = [(i, int(i.stem)) for i in self.folder_image.glob('*.jpg')]
+        lst = [(str(i), int(i.stem)) for i in self.folder_image.glob('*.jpg')]
         df = (
             pl.DataFrame(lst, orient='row', schema=['file_path', 'index'])
             .with_columns(pl.col('index').cast(pl.UInt32))
@@ -71,7 +71,7 @@ class PipelineImage:
             data
             .pipe(PipelineText().clean_text, col=self.col_text)
             .join(data_img, on='index', how='left')
-            .filter(pl.col('index'))
+            .filter(~pl.col('file_path').is_null())
         )
         if self.mode != '':
             data = data.select(pl.all().name.prefix(f'{self.mode}_'))
