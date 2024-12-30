@@ -147,9 +147,6 @@ class BuildIndexAndQuery:
     def query(self):
         # Load dataset
         dataset_db, dataset_q = self.load_dataset()
-        if len(dataset_db) < 2 or len(dataset_q) < 2:
-            print(f'[BuildIndex] DB/Q dataset < 2 rows')
-            return None
 
         # Batch query
         run = create_batch_index(len(dataset_q), self.QUERY_SIZE)
@@ -163,10 +160,13 @@ class BuildIndexAndQuery:
 
             # query
             start_idx, end_idx = val[0], val[-1]
+            if start_idx == end_idx:  # prevent sample size is 1
+                end_idx = None
+
             start_batch = perf_counter()
             score, result = dataset_db.get_nearest_examples_batch(
                 self.col_embedding,
-                dataset_q[start_idx:end_idx][self.col_embedding],
+                np.asarray(dataset_q[start_idx:end_idx][self.col_embedding]),
                 k=self.TOP_K,
             )
             # export
