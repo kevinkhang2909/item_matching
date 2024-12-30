@@ -27,9 +27,11 @@ class PipelineImage:
         print(f'[Image Processing] {mode}')
 
     def load_images(self) -> pl.DataFrame:
-        # listing
-        lst = [(i, i.stem) for i in self.folder_image.glob('*.jpg')]
-        df = pl.DataFrame(lst, orient='row', schema=['file_path', 'index'])
+        lst = [(i, int(i.stem)) for i in self.folder_image.glob('*.jpg')]
+        df = (
+            pl.DataFrame(lst, orient='row', schema=['file_path', 'index'])
+            .with_columns(pl.col('index').cast(pl.UInt32))
+        )
         print(f'-> Load images from folder: {df.shape}')
         return df
 
