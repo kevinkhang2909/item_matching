@@ -71,7 +71,6 @@ class PipelineImage:
             data
             .pipe(PipelineText().clean_text, col=self.col_text)
             .join(data_img, on='index', how='left')
-            .filter(~pl.col('file_path').is_null())
         )
         if self.mode != '':
             data = data.select(pl.all().name.prefix(f'{self.mode}_'))
