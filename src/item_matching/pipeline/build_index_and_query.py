@@ -108,14 +108,19 @@ class BuildIndexAndQuery:
         start = perf_counter()
         if not self.file_index.exists():
             print(f'[BuildIndex] Start')
-            build_index(
-                str(self.path_array_db),
-                index_path=str(self.file_index),
-                index_infos_path=self.file_index_json,
-                save_on_disk=True,
-                metric_type='ip',
-                verbose=30,
-            )
+            try:
+                build_index(
+                    str(self.path_array_db),
+                    index_path=str(self.file_index),
+                    index_infos_path=self.file_index_json,
+                    save_on_disk=True,
+                    metric_type='ip',
+                    verbose=30,
+                )
+                print(f'[BuildIndex] Time finished: {perf_counter() - start:,.2f}s')
+            except TypeError as e:
+                print(f'[BuildIndex] Error: {e}')
+                return None
             print(f'[BuildIndex] Time finished: {perf_counter() - start:,.2f}s')
         else:
             print(f'[BuildIndex] Index is existed')

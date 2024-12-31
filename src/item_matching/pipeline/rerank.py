@@ -5,14 +5,13 @@ from pydantic import BaseModel, Field, computed_field
 from tqdm import tqdm
 from rich import print
 from core_pro.ultilities import make_dir
-from ..func.post_processing import PostProcessing, data_explode_list
+from ..func.post_processing import data_explode_list
 
 
 class ReRankConfig(BaseModel):
     ROOTPATH: Path = Field(default=None)
     EXPLODE: bool = Field(default=False)
-    col_text: str = Field(default='')
-    col_image: str = Field(default='')
+    col_text: str = Field(default='item_name')
 
     @computed_field
     @property
@@ -61,7 +60,6 @@ class ReRank:
 
         # col
         self.col_text = record.col_text
-        self.col_image = record.col_image
 
     def _data_check(self, category: str):
         paths = {'text': self.path_text, 'image': self.path_image}
@@ -80,8 +78,6 @@ class ReRank:
             with base as (
                 select q_index
                 , q_{self.col_text}
-                , null q_{self.col_image}
-                , null db_{self.col_image}
                 , db_index
                 , db_{self.col_text}
                 , 'score_text' match_type
@@ -90,8 +86,6 @@ class ReRank:
                 union all
                 select q_index
                 , q_{self.col_text}
-                , q_{self.col_image}
-                , db_{self.col_image}
                 , db_index
                 , db_{self.col_text}
                 , 'score_image' match_type
@@ -103,7 +97,7 @@ class ReRank:
                 PIVOT base
                 ON match_type
                 USING sum(score)
-                GROUP BY q_index, q_{self.col_text}, q_{self.col_image}, db_{self.col_image}, db_index, db_{self.col_text}
+                GROUP BY q_index, q_{self.col_text}, db_index, db_{self.col_text}
             )
             -- calculate mean, max rerank
             , cal_tab as (
@@ -115,6 +109,7 @@ class ReRank:
             select * exclude(score_mean)
             , coalesce(score_mean, score_text, score_image) score_mean
             from cal_tab
+            order by q_index, coalesce(score_mean, score_text, score_image) desc
             """
         print(query)
         return duckdb.sql(query).pl()
@@ -124,6 +119,5 @@ class ReRank:
         for cat in tqdm(self.all_category, total=total_cat, desc='ReRanking'):
             df_dict = self._data_check(cat)
             df = self.rerank_score(data_text=df_dict['text'], data_image=df_dict['image'])
-            df = PostProcessing(df).run()
             df.write_parquet(self.path_result / f'{cat}.parquet')
         print(f'[RERANK]: Done {total_cat} categories')
