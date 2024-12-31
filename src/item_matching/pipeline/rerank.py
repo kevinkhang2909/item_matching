@@ -111,7 +111,6 @@ class ReRank:
             from cal_tab
             order by q_index, coalesce(score_mean, score_text, score_image) desc
             """
-        print(query)
         return duckdb.sql(query).pl()
 
     def run(self):
