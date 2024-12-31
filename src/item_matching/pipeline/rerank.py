@@ -80,9 +80,10 @@ class ReRank:
             with base as (
                 select q_index
                 , q_{self.col_text}
+                , null q_{self.col_image}
+                , null db_{self.col_image}
                 , db_index
                 , db_{self.col_text}
-                , q_level1_global_be_category level1_global_be_category
                 , 'score_text' match_type
                 , score_text_embed score
                 from data_text
@@ -93,7 +94,6 @@ class ReRank:
                 , db_{self.col_image}
                 , db_index
                 , db_{self.col_text}
-                , q_level1_global_be_category level1_global_be_category
                 , 'score_image' match_type
                 , score_image_embed score
                 from data_image
@@ -103,20 +103,20 @@ class ReRank:
                 PIVOT base
                 ON match_type
                 USING sum(score)
-                GROUP BY q_index, q_{self.col_image}, db_{self.col_image}, db_index, db_{self.col_text}, level1_global_be_category
+                GROUP BY q_index, q_{self.col_text}, q_{self.col_image}, db_{self.col_image}, db_index, db_{self.col_text}
             )
             -- calculate mean, max rerank
             , cal_tab as (
                 select *
-                , (coalesce(score_text, 0) + coalesce(score_image, 0)) / 2 as score_mean
+                , (score_text + score_image) / 2 as score_mean
                 from pivot_tab
-                where db_item_id != q_item_id
             )
             -- rank matches
-            select * 
-            , row_number() OVER (PARTITION BY q_item_id ORDER BY score_mean desc) ranking
+            select * exclude(score_mean)
+            , coalesce(score_mean, score_text, score_image) score_mean
             from cal_tab
             """
+        print(query)
         return duckdb.sql(query).pl()
 
     def run(self):
