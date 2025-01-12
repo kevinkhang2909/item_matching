@@ -1,8 +1,7 @@
 from pydantic import BaseModel, computed_field, Field
-from typing import List, Any
+from typing import List
 from pathlib import Path
 import duckdb
-from rich import print
 
 
 class ValidationUserData(BaseModel):

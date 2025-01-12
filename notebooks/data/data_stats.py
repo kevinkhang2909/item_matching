@@ -35,7 +35,7 @@ where
 group by 1, 2, 3, 4
 """
 save_path = path / 'stats/stats_l3.parquet'
-# df = DataPipeLine(query).run_presto_to_df(save_path=save_path)
+df = DataPipeLine(query).run_presto_to_df(save_path=save_path)
 
 df = (
     pl.read_parquet(save_path)
@@ -79,7 +79,7 @@ where
 group by 1, 2, 3, 4, 5, 6
 """
 save_path = path / 'stats/stats_l5.parquet'
-# df = DataPipeLine(query).run_presto_to_df(save_path=save_path)
+df = DataPipeLine(query).run_presto_to_df(save_path=save_path)
 
 df = (
     pl.read_parquet(save_path)
