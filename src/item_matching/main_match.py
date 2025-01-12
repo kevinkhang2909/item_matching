@@ -90,7 +90,7 @@ class PipelineMatch:
             print('*' * 50)
             print(
                 f"🐋 [PIPELINE MATCH BY {self.MATCH_BY}] 🐋 \n"
-                f"-> Category: {cat_log} {batch_log} \n"
+                f"-> Category: {cat_log} {batch_log}"
             )
             if not self.INNER:
                 chunk_db = self._load_data(cat=cat, mode='db', file=self.PATH_DB)
