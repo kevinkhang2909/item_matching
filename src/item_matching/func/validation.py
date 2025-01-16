@@ -1,15 +1,15 @@
 from pydantic import BaseModel, computed_field, Field
-from typing import List
 from pathlib import Path
-import duckdb
+import polars as pl
 
 
 class ValidationUserData(BaseModel):
     MATCH_BY: str = Field(default='text')
     FILE: Path
     MODE: str = Field(default='')
-    INPUT_COLUMNS: List[str] = Field(default=[])
     MATCH_CATEGORY: str = Field(default='level3_global_be_category')
+    existing_columns: set = Field(default=None)
+    required_category: list = Field(default=None)
 
     @computed_field
     @property
@@ -28,7 +28,7 @@ class ValidationUserData(BaseModel):
         required_columns = ['item_name']
 
         lv_index = int(self.MATCH_CATEGORY.split('_')[0][-1])
-        category = category[:lv_index]
+        self.required_category = category[:lv_index]
 
         required_columns += category
         if self.MATCH_BY == 'image':
@@ -38,21 +38,28 @@ class ValidationUserData(BaseModel):
     @computed_field
     @property
     def read_data(self) -> str:
+        file_type = self.FILE.suffix[1:]
         try:
-            data = duckdb.sql(f"select * from read_{self.FILE.suffix[1:]}('{self.FILE}') limit 10").pl()
-            self.INPUT_COLUMNS = data.columns
-        except Exception as errors:
-            return f"[UNKNOWN READING] Your **{self.MODE}** file may be damaged: {errors}"
+            if file_type == 'csv':
+                df = pl.read_csv(self.FILE)
+            else:
+                df = pl.read_parquet(self.FILE)
+        except (pl.exceptions.ComputeError, FileNotFoundError) as e:
+            return f"[UNKNOWN READING] **File {self.MODE}: {self.FILE.name}** file may be damaged: {e}"
+
+        self.existing_columns = set(df.columns)
 
     @computed_field
     @property
     def validation(self) -> str:
-        INPUT = set(self.INPUT_COLUMNS)
-        missing_columns = list(self.required_columns - INPUT)
+        missing_columns = list(self.required_columns - self.existing_columns)
         if missing_columns:
             message = (
-                f"[REQUIRED COLUMNS]: Missing {missing_columns}. "
-                f"Your columns: {self.INPUT_COLUMNS}"
+                f"[REQUIRED COLUMNS]: \n"
+                f"Missing {missing_columns}. \n"
+                f"Your columns: {list(self.existing_columns)} \n"
+                f"If you choose **Match in which level category in {self.MATCH_CATEGORY}**. "
+                f"Make sure to have {self.required_category} columns"
             )
             return message
 
@@ -60,18 +67,19 @@ class ValidationUserData(BaseModel):
     @property
     def summary(self) -> str:
         pipe = [
+            self.check_file_extension,
             self.read_data,
             self.validation,
-            self.check_file_extension,
         ]
         return '\n'.join([i for i in pipe if i])
 
 
-# valid = UserData(
-#     INPUT_COLUMNS=['item_name', 'level1_global_be_category', 'level2_global_be_category', 'level3_global_be_category'],
+# valid = ValidationUserData(
+#     existing_columns={'item_name', 'level1_global_be_category'},
 #     MATCH_BY='text',
 #     FILE= Path('file.parquet'),
-#     MODE='db'
+#     MODE='db',
+#     MATCH_CATEGORY='level3_global_be_category',
 # ).summary
 # print(valid)
 #
