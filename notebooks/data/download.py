@@ -42,4 +42,4 @@ for c in ['FMCG']:
         mode='',
         col_img_download='image_url'
     ).run(df, download=True, num_workers=32)
-    df.write_parquet(path / 'tts_clean.parquet')
+    df.write_parquet(path / f'data_sample_{c}_clean.parquet')
