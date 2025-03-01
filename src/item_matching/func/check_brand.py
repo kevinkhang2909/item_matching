@@ -2,10 +2,10 @@ from pathlib import Path
 import duckdb
 
 
-path = Path('/Users/kevinkhang/Downloads/Data')
+path = Path("/Users/kevinkhang/Downloads/Data")
 
-file_brand = path / 'brand/brand.parquet'
-file_data = path / 'Item_Matching_Test/clean.parquet'
+file_brand = path / "brand/brand.parquet"
+file_data = path / "Item_Matching_Test/clean.parquet"
 
 query = f"""
 select level1_global_be_category

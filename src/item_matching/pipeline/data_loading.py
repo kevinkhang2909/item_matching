@@ -11,33 +11,35 @@ from ..model.model import Model
 class ConfigEmbedding(BaseModel):
     ROOT_PATH: Path = Field(default=None)
     SHARD_SIZE: int = Field(default=1_500_000)
-    MODE: str = Field(default='')
-    MATCH_BY: str = Field(default='text')
+    MODE: str = Field(default="")
+    MATCH_BY: str = Field(default="text")
 
     @computed_field
     @property
     def col_embedding(self) -> str:
-        dict_ = {'image': 'image_embed'}
-        return dict_.get(self.MATCH_BY, 'text_embed')
+        dict_ = {"image": "image_embed"}
+        return dict_.get(self.MATCH_BY, "text_embed")
 
     @computed_field
     @property
     def col_input(self) -> str:
-        col = 'file_path' if self.MODE == '' else f'{self.MODE}_file_path'
-        default_val = 'item_name_clean' if self.MODE == '' else f'{self.MODE}_item_name_clean'
-        dict_ = {'image': col}
+        col = "file_path" if self.MODE == "" else f"{self.MODE}_file_path"
+        default_val = (
+            "item_name_clean" if self.MODE == "" else f"{self.MODE}_item_name_clean"
+        )
+        dict_ = {"image": col}
         return dict_.get(self.MATCH_BY, default_val)
 
     @computed_field
     @property
     def path_array(self) -> Path:
-        folder = 'array' if self.MODE == '' else f'{self.MODE}_array'
+        folder = "array" if self.MODE == "" else f"{self.MODE}_array"
         return self.ROOT_PATH / folder
 
     @computed_field
     @property
     def path_ds(self) -> Path:
-        folder = 'ds' if self.MODE == '' else f'{self.MODE}_ds'
+        folder = "ds" if self.MODE == "" else f"{self.MODE}_ds"
         return self.ROOT_PATH / folder
 
 
@@ -62,16 +64,16 @@ class DataEmbedding:
 
         # Model
         model = Model()
-        if self.MATCH_BY == 'text':
+        if self.MATCH_BY == "text":
             model.get_text_model()
-        elif self.MATCH_BY == 'image':
+        elif self.MATCH_BY == "image":
             model.get_img_model()
 
         # Process and save each chunk
         for i, idx in run.items():
             # Check if exists:
-            dataset_name = self.path_ds / f'{i}'
-            array_name = self.path_array / f'{i}.npy'
+            dataset_name = self.path_ds / f"{i}"
+            array_name = self.path_array / f"{i}.npy"
             if dataset_name.exists():
                 continue
 
@@ -81,26 +83,38 @@ class DataEmbedding:
                 end_idx = None
 
             dataset_chunk = Dataset.from_polars(data[start_idx:end_idx])
-            print(f'[DataEmbedding] Shard [{i}/{num_chunks - 1}]: start {start_idx:,.0f} end {end_idx:,.0f}')
+            print(
+                f"[DataEmbedding] Shard [{i}/{num_chunks - 1}]: start {start_idx:,.0f} end {end_idx:,.0f}"
+            )
 
             # Process dataset
-            if self.MATCH_BY == 'text':
+            if self.MATCH_BY == "text":
                 embeddings = model.process_text(dataset_chunk[self.col_input])
                 dset_embed = Dataset.from_dict({self.col_embedding: embeddings})
-                dataset_chunk = concatenate_datasets([dataset_chunk, dset_embed], axis=1)
+                dataset_chunk = concatenate_datasets(
+                    [dataset_chunk, dset_embed], axis=1
+                )
             else:
                 dataset_chunk = dataset_chunk.map(
                     model.process_image,
                     batch_size=512,
                     batched=True,
-                    fn_kwargs={'col': self.col_input}
+                    fn_kwargs={"col": self.col_input},
                 )
 
             # Normalize
-            dataset_chunk.set_format(type='torch', columns=[self.col_embedding], output_all_columns=True)
-            if self.MATCH_BY == 'image':
-                dataset_chunk = dataset_chunk.map(Model.pp_normalize, batched=True, fn_kwargs={'col': self.col_embedding})
-            dataset_chunk.set_format(type='numpy', columns=[self.col_embedding], output_all_columns=True)
+            dataset_chunk.set_format(
+                type="torch", columns=[self.col_embedding], output_all_columns=True
+            )
+            if self.MATCH_BY == "image":
+                dataset_chunk = dataset_chunk.map(
+                    Model.pp_normalize,
+                    batched=True,
+                    fn_kwargs={"col": self.col_embedding},
+                )
+            dataset_chunk.set_format(
+                type="numpy", columns=[self.col_embedding], output_all_columns=True
+            )
 
             # Save chunk
             np.save(array_name, dataset_chunk[self.col_embedding])
