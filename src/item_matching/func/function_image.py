@@ -3,7 +3,7 @@ import polars as pl
 from rich import print
 from core_pro import ImageDownloader
 from core_pro.ultilities import make_dir
-from .function_text import PipelineText
+from core_eda import TextEDA
 
 
 class PipelineImage:
@@ -27,11 +27,14 @@ class PipelineImage:
         print(f"[Image Processing] {mode}")
 
     def load_images(self) -> pl.DataFrame:
-        lst = [(str(i), int(i.stem)) for i in self.folder_image.glob("*.jpg")]
+        lst = [(int(i.stem), str(i)) for i in self.folder_image.glob("*/*.jpg")]
         df = pl.DataFrame(
-            lst, orient="row", schema=["file_path", "index"]
+            lst, orient="row", schema=["index", "file_path"]
         ).with_columns(pl.col("index").cast(pl.UInt32))
-        print(f"-> Load images from folder: {df.shape}")
+        if df.shape[0] == 0:
+            print(f"-> Images Errors {self.mode}: {df.shape}")
+        else:
+            print(f"-> Load images from folder {self.mode}: {df.shape}")
         return df
 
     def run(
@@ -43,8 +46,7 @@ class PipelineImage:
     ):
         # load data
         data = data.with_row_index()
-        run = data[["index", self.col_img_download]].to_numpy().tolist()
-
+        run = data[self.col_img_download].to_list()
         print(f"-> Base data {self.mode}: {data.shape}")
 
         # download
@@ -54,19 +56,16 @@ class PipelineImage:
                 num_processes=num_processes,
                 threads_per_process=num_workers,
                 resize_size=(224, 224),
+                batch_size=1000,
+                images_per_folder=1000,
             )
             downloader.download_images(run)
 
         # load data image
         data_img = self.load_images()
 
-        # errors image
-        if data_img.shape[0] == 0:
-            print(f"-> Images Errors {self.mode}: {data.shape}")
-            return data, data_img
-
         # join
-        data = data.pipe(PipelineText().clean_text, col=self.col_text).join(
+        data = data.pipe(TextEDA.clean_text, col=self.col_text).join(
             data_img, on="index", how="left"
         )
         if self.mode != "":

@@ -4,8 +4,8 @@ import polars as pl
 
 
 # download parquet
-path = make_sync_folder('Item_Matching_Test')
-sh = '1JQiN33Z8hTPd_ENBAoqToMKXGr2Qp5ZU0rjvFPHCTAI'
+path = make_sync_folder("Item_Matching_Test")
+sh = "1JQiN33Z8hTPd_ENBAoqToMKXGr2Qp5ZU0rjvFPHCTAI"
 
 query = f"""
 with cat as (
@@ -34,20 +34,20 @@ where
     o.grass_date >= current_date - interval '90' day
 group by 1, 2, 3, 4
 """
-save_path = path / 'stats/stats_l3.parquet'
+save_path = path / "stats/stats_l3.parquet"
 df = DataPipeLine(query).run_presto_to_df(save_path=save_path)
 
 df = (
     pl.read_parquet(save_path)
     .with_columns(
-        (pl.col('total_items_90d') / pl.col('total_items_90d').sum()).alias('pct_90d'),
-        (pl.col('total_items_60d') / pl.col('total_items_30d')).alias('dif_60'),
-        (pl.col('total_items_90d') / pl.col('total_items_30d')).alias('dif_90'),
+        (pl.col("total_items_90d") / pl.col("total_items_90d").sum()).alias("pct_90d"),
+        (pl.col("total_items_60d") / pl.col("total_items_30d")).alias("dif_60"),
+        (pl.col("total_items_90d") / pl.col("total_items_30d")).alias("dif_90"),
     )
-    .drop_nulls(subset=['cluster'])
-    .sort(['level1_global_be_category'])
+    .drop_nulls(subset=["cluster"])
+    .sort(["level1_global_be_category"])
 )
-update_df(df, 'category', sh, start='A1')
+update_df(df, "category", sh, start="A1")
 
 query = f"""
 with cat as (
@@ -78,17 +78,17 @@ where
     o.grass_date >= current_date - interval '90' day
 group by 1, 2, 3, 4, 5, 6
 """
-save_path = path / 'stats/stats_l5.parquet'
+save_path = path / "stats/stats_l5.parquet"
 df = DataPipeLine(query).run_presto_to_df(save_path=save_path)
 
 df = (
     pl.read_parquet(save_path)
     .with_columns(
-        (pl.col('total_items_90d') / pl.col('total_items_90d').sum()).alias('pct_90d'),
-        (pl.col('total_items_60d') / pl.col('total_items_30d')).alias('dif_60'),
-        (pl.col('total_items_90d') / pl.col('total_items_30d')).alias('dif_90'),
+        (pl.col("total_items_90d") / pl.col("total_items_90d").sum()).alias("pct_90d"),
+        (pl.col("total_items_60d") / pl.col("total_items_30d")).alias("dif_60"),
+        (pl.col("total_items_90d") / pl.col("total_items_30d")).alias("dif_90"),
     )
-    .drop_nulls(subset=['cluster'])
-    .sort(['level1_global_be_category'])
+    .drop_nulls(subset=["cluster"])
+    .sort(["level1_global_be_category"])
 )
-update_df(df, 'category', sh, start='M1')
+update_df(df, "category", sh, start="M1")
