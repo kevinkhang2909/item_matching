@@ -12,7 +12,7 @@ from src.item_matching.pipeline.rerank import ReRank, ReRankConfig
 
 # path
 cluster = 'FMCG'
-path = make_sync_folder('Item_Matching_Test')
+path = make_sync_folder("dataset/item_matching")
 
 file = path / f'data_sample_{cluster}_0.parquet'
 file_inner = path / 'inner.parquet'

@@ -7,7 +7,7 @@ from core_eda import EDA_Dataframe
 from pathlib import Path
 import sys
 
-sys.path.extend([str(Path.home() / "/Users/kevinkhang/PycharmProjects/item_matching")])
+sys.path.extend([str(Path.home() / "PycharmProjects/item_matching")])
 
 from src.item_matching import PipelineImage
 
@@ -35,10 +35,10 @@ for c in ["FMCG"]:
     from read_parquet('{str(path / f'{file.stem}.parquet')}')
     order by item_id, images
     """
-    df = duckdb.sql(query).pl().unique(["item_id"]).head(100)
+    df = duckdb.sql(query).pl().unique(["item_id"])
     EDA_Dataframe(df, ["item_id"]).check_duplicate()
 
     df, df_img = PipelineImage(
         path_image=path_image, mode="", col_img_download="image_url"
-    ).run(df, download=True, num_workers=2, num_processes=2)
+    ).run(df, download=True, num_workers=4, num_processes=4)
     df.write_parquet(path / f"data_sample_{c}_clean.parquet")

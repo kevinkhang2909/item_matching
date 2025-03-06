@@ -65,7 +65,7 @@ class PipelineImage:
         data_img = self.load_images()
 
         # join
-        data = data.pipe(TextEDA.clean_text, col=self.col_text).join(
+        data = data.pipe(TextEDA.clean_text_pipeline_polars, col=self.col_text).join(
             data_img, on="index", how="left"
         )
         if self.mode != "":
