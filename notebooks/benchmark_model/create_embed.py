@@ -1,20 +1,19 @@
 import duckdb
 from core_pro.ultilities import make_sync_folder
 from pathlib import Path
+from datasets import Dataset
+import numpy as np
 import sys
 sys.path.extend([str(Path.home() / 'PycharmProjects/item_matching')])
 
-from src.item_matching.func.function_image import PipelineImage
-from src.item_matching.func.function_text import PipelineText
-from src.item_matching.main_match import PipelineMatch, MatchInput
-from src.item_matching.pipeline.rerank import ReRank, ReRankConfig
+from src.item_matching.model.model import Model
 
 
 # path
 cluster = 'FMCG'
 path = make_sync_folder("dataset/item_matching")
 
-file = path / f'data_sample_{cluster}_0.parquet'
+file = path / f'data_sample_{cluster}_clean.parquet'
 file_inner = path / 'inner.parquet'
 
 # data loading
@@ -31,37 +30,9 @@ df = (
     duckdb.sql(query).pl()
     .unique(['item_id'])
 )
+dataset_chunk = Dataset.from_polars(df)
 
-# text
-df = PipelineText().run(df)
-df.write_parquet(file_inner)
-
-config = MatchInput(
-    ROOT_PATH=path,
-    PATH_INNER=file_inner,
-    INNER=True ,
-    MATCH_BY='text',
-    COL_CATEGORY='category',
-    TOP_K=10,
-    EXPLODE=False,
-)
-PipelineMatch(config).run()
-
-# image
-df, df_img = PipelineImage(path / f'download_img_{cluster}').run(df)
-df.write_parquet(file_inner)
-
-config = MatchInput(
-    ROOT_PATH=path,
-    PATH_INNER=file_inner,
-    INNER=True ,
-    MATCH_BY='image',
-    COL_CATEGORY='category',
-    TOP_K=10,
-    EXPLODE=False,
-)
-PipelineMatch(config).run()
-
-# rerank
-config = ReRankConfig(ROOTPATH=path, EXPLODE=True)
-ReRank(config).run()
+model = Model()
+model.get_text_model()
+embeddings = model.process_text(dataset_chunk["item_name_clean"])
+np.save(path / "embeddings.npy", embeddings)

@@ -15,7 +15,7 @@ class PipelineText:
         df = duckdb.sql(query).pl()
         print(f"-> Base Data {self.mode}: {df.shape}")
 
-        df = df.pipe(TextEDA.clean_text).drop_nulls(subset=key_col)
+        df = df.pipe(TextEDA.clean_text_pipeline_polars).drop_nulls(subset=key_col)
         if self.mode != "":
             df = df.select(pl.all().name.prefix(f"{self.mode}_"))
         print(f"-> Cleaned Data {self.mode}: {df.shape}")

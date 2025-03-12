@@ -27,10 +27,11 @@ class PipelineImage:
         print(f"[Image Processing] {mode}")
 
     def load_images(self) -> pl.DataFrame:
-        lst = [(int(i.stem), str(i)) for i in self.folder_image.glob("*/*.jpg")]
-        df = pl.DataFrame(
-            lst, orient="row", schema=["index", "file_path"]
-        ).with_columns(pl.col("index").cast(pl.UInt32))
+        lst = [(int(i.stem), str(i), i.exists()) for i in self.folder_image.glob("*/*.jpg")]
+        df = (
+            pl.DataFrame(lst, orient="row", schema=["index", "file_path", "exists"])
+            .with_columns(pl.col("index").cast(pl.UInt32))
+        )
         if df.shape[0] == 0:
             print(f"-> Images Errors {self.mode}: {df.shape}")
         else:
@@ -65,8 +66,10 @@ class PipelineImage:
         data_img = self.load_images()
 
         # join
-        data = data.pipe(TextEDA.clean_text_pipeline_polars, col=self.col_text).join(
-            data_img, on="index", how="left"
+        data = (
+            data.pipe(TextEDA.clean_text_pipeline_polars, col=self.col_text)
+            .join(data_img, on="index", how="left")
+            .filter(pl.col("exists"))
         )
         if self.mode != "":
             data = data.select(pl.all().name.prefix(f"{self.mode}_"))
