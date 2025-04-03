@@ -1,76 +1,44 @@
 import polars as pl
 import duckdb
 from pathlib import Path
-from pydantic import BaseModel, Field, computed_field
 from tqdm import tqdm
 from rich import print
 from core_pro.ultilities import make_dir
-from ..func.post_processing import data_explode_list
-
-
-class ReRankConfig(BaseModel):
-    ROOTPATH: Path = Field(default=None)
-    EXPLODE: bool = Field(default=False)
-    col_text: str = Field(default="item_name")
-
-    @computed_field
-    @property
-    def path_result(self) -> Path:
-        path_result = self.ROOTPATH / "result_match_rerank"
-        make_dir(path_result)
-        return path_result
-
-    @computed_field
-    @property
-    def path_text(self) -> Path:
-        return self.ROOTPATH / "result_match_text"
-
-    @computed_field
-    @property
-    def path_image(self) -> Path:
-        return self.ROOTPATH / "result_match_image"
-
-    @computed_field
-    @property
-    def file_text(self) -> list:
-        return [*self.path_text.glob("*.parquet")]
-
-    @computed_field
-    @property
-    def file_image(self) -> list:
-        return [*self.path_image.glob("*.parquet")]
 
 
 class ReRank:
-    def __init__(self, record: ReRankConfig):
-        # all category
-        self.all_category = set(
-            [i.stem for i in record.file_text] + [i.stem for i in record.file_image]
-        )
-
-        # config
-        self.EXPLODE = record.EXPLODE
-
+    def __init__(
+            self,
+            path: Path,
+            db_col_idx: str = "db_item_id",
+            q_col_idx: str = "q_item_id",
+            col_text: str = "item_name"
+    ):
         # path
-        self.path_result = record.path_result
-        self.path_image = record.path_image
-        self.path_text = record.path_text
+        self.path = path
+        self.path_image = self.path / "result_match_image"
+        self.path_text = self.path / "result_match_text"
+        self.path_result = self.path / "result_match_rerank"
+        make_dir(self.path_result)
 
         # file
-        self.file_text = record.file_text
-        self.file_image = record.file_image
+        self.file_text = [*self.path_text.glob("*.parquet")]
+        self.file_image = [*self.path_image.glob("*.parquet")]
+
+        # all category
+        self.all_category = set([i.stem for i in self.file_text] + [i.stem for i in self.file_image])
 
         # col
-        self.col_text = record.col_text
+        self.col_text = col_text
+        self.db_col_idx = db_col_idx
+        self.q_col_idx = q_col_idx
 
     def _data_check(self, category: str):
         paths = {"text": self.path_text, "image": self.path_image}
-        df_dict = {}
-        for name, path in paths.items():
-            df = pl.read_parquet(path / f"{category}.parquet")
-            if self.EXPLODE:
-                df = data_explode_list(df)
-            df_dict[name] = df
+        df_dict = {
+            name: pl.read_parquet(path / f"{category}.parquet")
+            for name, path in paths.items()
+        }
         return df_dict
 
     def rerank_score(self, data_text, data_image):
@@ -78,17 +46,17 @@ class ReRank:
         query = f"""
             -- combine text & image
             with base as (
-                select q_index
+                select {self.q_col_idx}
                 , q_{self.col_text}
-                , db_index
+                , {self.db_col_idx}
                 , db_{self.col_text}
                 , 'score_text' match_type
                 , score_text_embed score
                 from data_text
                 union all
-                select q_index
+                select {self.q_col_idx}
                 , q_{self.col_text}
-                , db_index
+                , {self.db_col_idx}
                 , db_{self.col_text}
                 , 'score_image' match_type
                 , score_image_embed score
@@ -99,7 +67,7 @@ class ReRank:
                 PIVOT base
                 ON match_type
                 USING sum(score)
-                GROUP BY q_index, q_{self.col_text}, db_index, db_{self.col_text}
+                GROUP BY {self.q_col_idx}, q_{self.col_text}, {self.db_col_idx}, db_{self.col_text}
             )
             -- calculate mean, max rerank
             , cal_tab as (
@@ -111,7 +79,7 @@ class ReRank:
             select * exclude(score_mean)
             , coalesce(score_mean, score_text, score_image) score_mean
             from cal_tab
-            order by q_index, coalesce(score_mean, score_text, score_image) desc
+            order by {self.q_col_idx}, coalesce(score_mean, score_text, score_image) desc
             """
         return duckdb.sql(query).pl()
 
