@@ -33,12 +33,12 @@ class ReRankConfig(BaseModel):
     @computed_field
     @property
     def file_text(self) -> list:
-        return [*self.path_text.glob("*")]
+        return [*self.path_text.glob("*.parquet")]
 
     @computed_field
     @property
     def file_image(self) -> list:
-        return [*self.path_image.glob("*")]
+        return [*self.path_image.glob("*.parquet")]
 
 
 class ReRank:
@@ -118,9 +118,12 @@ class ReRank:
     def run(self):
         total_cat = len(self.all_category)
         for cat in tqdm(self.all_category, total=total_cat, desc="ReRanking"):
+            file_name = self.path_result / f"{cat}.parquet"
+            if file_name.exists():
+                continue
             df_dict = self._data_check(cat)
             df = self.rerank_score(
                 data_text=df_dict["text"], data_image=df_dict["image"]
             )
-            df.write_parquet(self.path_result / f"{cat}.parquet")
+            df.write_parquet(file_name)
         print(f"[RERANK]: Done {total_cat} categories")
