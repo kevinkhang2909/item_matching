@@ -90,8 +90,7 @@ class ReRank:
             if file_name.exists():
                 continue
             df_dict = self._data_check(cat)
-            df = self.rerank_score(
-                data_text=df_dict["text"], data_image=df_dict["image"]
-            )
-            df.write_parquet(file_name)
+            df = self.rerank_score(data_text=df_dict["text"], data_image=df_dict["image"])
+            if not df.is_empty():
+                df.write_parquet(file_name)
         print(f"[RERANK]: Done {total_cat} categories")
