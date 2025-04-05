@@ -3,105 +3,59 @@ import polars as pl
 from time import perf_counter
 from autofaiss import build_index
 from datasets import concatenate_datasets, load_from_disk
-from pydantic import BaseModel, Field, computed_field
 import numpy as np
 from rich import print
 from core_pro.ultilities import create_batch_index, make_dir
-from ..func.post_processing import data_explode_list
-
-
-class ConfigQuery(BaseModel):
-    ROOT_PATH: Path = Field(default=None)
-    QUERY_SIZE: int = Field(default=50_000)
-    MATCH_BY: str = Field(default="text")
-    TOP_K: int = Field(default=10)
-
-    @computed_field
-    @property
-    def col_embedding(self) -> str:
-        dict_ = {"image": "image_embed"}
-        return dict_.get(self.MATCH_BY, "text_embed")
-
-    @computed_field
-    @property
-    def path_array_db(self) -> Path:
-        return self.ROOT_PATH / f"db_array"
-
-    @computed_field
-    @property
-    def path_ds_db(self) -> Path:
-        return self.ROOT_PATH / f"db_ds"
-
-    @computed_field
-    @property
-    def path_ds_q(self) -> Path:
-        return self.ROOT_PATH / f"q_ds"
-
-    @computed_field
-    @property
-    def path_ds_inner(self) -> Path:
-        return self.ROOT_PATH / f"ds"
-
-    @computed_field
-    @property
-    def path_array_inner(self) -> Path:
-        return self.ROOT_PATH / f"array"
-
-    @computed_field
-    @property
-    def path_index(self) -> Path:
-        return self.ROOT_PATH / f"index"
-
-    @computed_field
-    @property
-    def path_result_query_score(self) -> Path:
-        path_result = self.ROOT_PATH / f"result"
-        make_dir(path_result)
-        return path_result
-
-    @computed_field
-    @property
-    def path_result_final(self) -> Path:
-        path_result = self.ROOT_PATH / f"result_match_{self.MATCH_BY}"
-        make_dir(path_result)
-        return path_result
+from func import _create_folder, _round_score
+from re import search
 
 
 class BuildIndexAndQuery:
     def __init__(
         self,
+        path: Path,
         file_export_name: str,
-        config: ConfigQuery,
-        inner: bool = False,
-        explode: bool = True,
+        MATCH_BY: str = "text",
+        TOP_K: int = 10,
+        QUERY_SIZE: int = 50_000,
     ):
-        self.TOP_K = config.TOP_K
-        self.QUERY_SIZE = config.QUERY_SIZE
-        self.col_embedding = config.col_embedding
-        self.inner = inner
-        self.explode = explode
-        self.sort_key_ds = lambda x: int(x.stem)
-        self.sort_key_result = lambda x: int(x.stem.split("_")[1])
+        self.path = path
+        self.TOP_K = TOP_K
+        self.QUERY_SIZE = QUERY_SIZE
+        self.MATCH_BY = MATCH_BY
+        self.file_export_name = file_export_name
+        self._prepare_col_input_model()
 
         # index
-        self.path_index = config.path_index
+        self.path_index = _create_folder(path, "index", one=True)
         self.file_index = self.path_index / f"ip.index"
         self.file_index_json = str(self.path_index / f"index.json")
 
         # array
-        self.path_array_db = config.path_array_inner if inner else config.path_array_db
+        self.path_array_db = path / "db_array"
 
         # ds
-        self.dataset_dict = {
-            "db_ds_path": config.path_ds_db,
-            "q_ds_path": config.path_ds_q,
-            "inner_ds_path": config.path_ds_inner,
-        }
+        self.dataset_dict = {f"{i}_ds_path": self.path / f"{i}_ds" for i in ["db", "q"]}
+
+        # sort key
+        self.sort_key_ds = lambda x: int(x.stem)
+        self.sort_key_result = lambda x: int(x.stem.split("_")[1])
 
         # result
-        self.path_result_query_score = config.path_result_query_score
-        self.path_result_final = config.path_result_final
-        self.file_export_final = self.path_result_final / f"{file_export_name}.parquet"
+        self._create_folder_result()
+
+    def _create_folder_result(self):
+        self.path_result_query_score = self.path / f"result"
+        self.path_result_final = self.path / f"result_match_{self.MATCH_BY}"
+        make_dir(self.path_result_query_score)
+        make_dir(self.path_result_final)
+        self.file_export_final = self.path_result_final / f"{self.file_export_name}.parquet"
+
+    def _prepare_col_input_model(self):
+        if self.MATCH_BY == "text":
+            self.col_embedding = f"{self.MATCH_BY}_embed"
+        else:
+            self.col_embedding = f"{self.MATCH_BY}_embed"
 
     def build(self):
         # Build index
@@ -112,7 +66,7 @@ class BuildIndexAndQuery:
                 build_index(
                     str(self.path_array_db),
                     index_path=str(self.file_index),
-                    index_infos_path=self.file_index_json,
+                    index_infos_path=str(self.file_index_json),
                     save_on_disk=True,
                     metric_type="ip",
                     verbose=30,
@@ -126,33 +80,10 @@ class BuildIndexAndQuery:
 
     def load_dataset(self):
         dataset = {}
-        if self.inner:
-            for i in ["db", "q"]:
-                dataset[i] = concatenate_datasets(
-                    [
-                        load_from_disk(str(f))
-                        for f in sorted(
-                            self.dataset_dict[f"inner_ds_path"].glob("*"),
-                            key=self.sort_key_ds,
-                        )
-                    ]
-                )
-
-                for c in dataset[i].column_names:
-                    if c != self.col_embedding:
-                        dataset[i] = dataset[i].rename_column(c, f"{i}_{c}")
-
-        else:
-            for i in ["db", "q"]:
-                dataset[i] = concatenate_datasets(
-                    [
-                        load_from_disk(str(f))
-                        for f in sorted(
-                            self.dataset_dict[f"{i}_ds_path"].glob("*"),
-                            key=self.sort_key_ds,
-                        )
-                    ]
-                )
+        for i in ["db", "q"]:
+            files = sorted(self.dataset_dict[f"{i}_ds_path"].glob("*"), key=self.sort_key_ds)
+            lst_ds = [load_from_disk(str(f)) for f in files]
+            dataset[i] = concatenate_datasets(lst_ds)
 
         # Add index
         dataset["db"].load_faiss_index(self.col_embedding, self.file_index)
@@ -194,9 +125,7 @@ class BuildIndexAndQuery:
                 print(f"[red]No matches found for {i}[/]")
                 continue
 
-            dict_ = {
-                f"score_{self.col_embedding}": [list(np.round(arr, 6)) for arr in score]
-            }
+            dict_ = {f"score_{self.col_embedding}": [_round_score(arr) for arr in score]}
             df_score = pl.DataFrame(dict_)
             df_score.write_parquet(file_name_score)
 
@@ -207,35 +136,24 @@ class BuildIndexAndQuery:
             )
             del score, result, df_score, df_result
 
-        # Post process
-        dataset_q = dataset_q.remove_columns(
-            self.col_embedding
-        )  # prevent polars issues
+        # Concat all files
+        dataset_q = dataset_q.remove_columns(self.col_embedding)  # prevent polars issues
         del dataset_db
 
-        df_score = pl.concat(
-            [
-                pl.read_parquet(f)
-                for f in sorted(
-                    self.path_result_query_score.glob("score*.parquet"),
-                    key=self.sort_key_result,
-                )
-            ]
-        )
-        df_result = pl.concat(
-            [
-                pl.read_parquet(f)
-                for f in sorted(
-                    self.path_result_query_score.glob("result*.parquet"),
-                    key=self.sort_key_result,
-                )
-            ]
-        )
+        # score
+        files_score = sorted(self.path_result_query_score.glob("score*.parquet"), key=self.sort_key_result)
+        df_score = pl.concat([pl.read_parquet(f) for f in files_score])
 
-        df_match = pl.concat(
-            [dataset_q.to_polars(), df_result, df_score], how="horizontal"
-        )
-        if self.explode:
-            df_match = data_explode_list(df_match)
+        # result
+        files_result = sorted(self.path_result_query_score.glob("result*.parquet"), key=self.sort_key_result)
+        df_result = pl.concat([pl.read_parquet(f) for f in files_result])
 
+        # combine to data
+        df_match = pl.concat([dataset_q.to_polars(), df_result, df_score], how="horizontal")
+
+        # explode result
+        col_explode = [i for i in df_match.columns if search("db|score", i)]
+        df_match = df_match.explode(col_explode)
+
+        # export
         df_match.write_parquet(self.file_export_final)
