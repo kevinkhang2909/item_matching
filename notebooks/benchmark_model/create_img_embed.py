@@ -1,25 +1,35 @@
 import duckdb
-from core_pro.ultilities import make_sync_folder
 from datasets import Dataset
 import numpy as np
 import polars as pl
 from transformers import AutoProcessor, SiglipVisionModel, Dinov2WithRegistersModel
-from time import perf_counter
+from PIL import Image
 import torch
 from accelerate import Accelerator
-from PIL import Image
 from torch.nn import functional as F
+from time import perf_counter
+from core_pro.ultilities import make_sync_folder
 
 device = Accelerator().device
 
 
-def run_siglip(result: list, run: list):
+def process_image(batch, col: str, img_processor, img_model):
+    images = [Image.open(i).convert("RGB") for i in batch[col]]
+    inputs = img_processor(images=images, return_tensors="pt").to(device)
+    with torch.inference_mode():
+        outputs = img_model(**inputs)
+    pooled_output = outputs.pooler_output
+    norm_embed = F.normalize(pooled_output, p=2, dim=1).cpu().numpy()
+    return {"image_embed": norm_embed}
+
+
+def run_siglip(result: list, dataset_chunk):
     # path
     pretrain_name = "google/siglip-base-patch16-224"
     file_embed = path / "siglip_encode.npy"
 
     # load model
-    img_processor = AutoProcessor.from_pretrained(pretrain_name)
+    img_processor = AutoProcessor.from_pretrained(pretrain_name, use_fast=True)
     config = {
         "pretrained_model_name_or_path": pretrain_name,
         "torch_dtype": torch.bfloat16,
@@ -29,27 +39,28 @@ def run_siglip(result: list, run: list):
 
     # inference
     start = perf_counter()
-    images = [Image.open(i).convert("RGB") for i in run]
-    inputs = img_processor(images=images, return_tensors="pt").to(device)
-    with torch.inference_mode():
-        outputs = img_model(**inputs)
-    pooled_output = outputs.pooler_output
-    norm_embed = F.normalize(pooled_output, p=2, dim=1).cpu().numpy()
+    dataset_chunk = dataset_chunk.map(
+        process_image,
+        batch_size=128,
+        batched=True,
+        fn_kwargs={"col": "file_path", "img_processor": img_processor, "img_model": img_model},
+    )
+    dataset_chunk.set_format(type="numpy", columns=["image_embed"], output_all_columns=True)
 
     # save
     durations = perf_counter() - start
-    np.save(file_embed, norm_embed.astype(np.float64))
+    np.save(file_embed, dataset_chunk["image_embed"].astype(np.float64))
     result.append((pretrain_name, durations))
     return result
 
 
-def run_dinov2(result: list, run: list):
+def run_dinov2(result: list, dataset_chunk):
     # path
     pretrain_name = "facebook/dinov2-with-registers-base"
     file_embed = path / "dinov2_encode.npy"
 
     # load model
-    img_processor = AutoProcessor.from_pretrained(pretrain_name)
+    img_processor = AutoProcessor.from_pretrained(pretrain_name, use_fast=True)
     config = {
         "pretrained_model_name_or_path": pretrain_name,
         "torch_dtype": torch.bfloat16,
@@ -59,16 +70,17 @@ def run_dinov2(result: list, run: list):
 
     # inference
     start = perf_counter()
-    images = [Image.open(i).convert("RGB") for i in run]
-    inputs = img_processor(images=images, return_tensors="pt").to(device)
-    with torch.inference_mode():
-        outputs = img_model(**inputs)
-    pooled_output = outputs.pooler_output
-    norm_embed = F.normalize(pooled_output, p=2, dim=1).cpu().numpy()
+    dataset_chunk = dataset_chunk.map(
+        process_image,
+        batch_size=128,
+        batched=True,
+        fn_kwargs={"col": "file_path", "img_processor": img_processor, "img_model": img_model},
+    )
+    dataset_chunk.set_format(type="numpy", columns=["image_embed"], output_all_columns=True)
 
     # save
     durations = perf_counter() - start
-    np.save(file_embed, norm_embed.astype(np.float64))
+    np.save(file_embed, dataset_chunk["image_embed"].astype(np.float64))
     result.append((pretrain_name, durations))
     return result
 
@@ -90,12 +102,11 @@ limit 10000
 """
 df = duckdb.sql(query).pl().unique(["item_id"])
 dataset_chunk = Dataset.from_polars(df)
-run = df["file_path"].to_list()
 
 # run
 result = []
-result = run_siglip(result, run)
-result = run_dinov2(result, run)
+result = run_siglip(result, dataset_chunk)
+result = run_dinov2(result, dataset_chunk)
 
 # result
 df_result = pl.DataFrame(result, orient="row", schema=["name", "duration"])
