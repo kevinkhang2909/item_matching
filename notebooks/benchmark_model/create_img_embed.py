@@ -18,7 +18,7 @@ def process_image(batch, col: str, img_processor, img_model):
     inputs = img_processor(images=images, return_tensors="pt").to(device)
     with torch.inference_mode():
         outputs = img_model(**inputs)
-    pooled_output = outputs.pooler_output
+    pooled_output = outputs.pooler_output.half()
     norm_embed = F.normalize(pooled_output, p=2, dim=1).cpu().numpy()
     return {"image_embed": norm_embed}
 
