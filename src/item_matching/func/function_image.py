@@ -1,7 +1,7 @@
 from pathlib import Path
 import polars as pl
 from rich import print
-from core_pro import ImageDownloader
+from core_pro import ImgDownloaderThreadProcess
 from core_pro.ultilities import make_dir
 from core_eda import TextEDA
 
@@ -11,27 +11,23 @@ class PipelineImage:
         self,
         path_image: Path,
         mode: str = "",
-        col_img_download: str = "image_url",
-        col_text: str = "item_name",
+
     ):
         # path
         self.path_image = path_image
+        make_dir(self.path_image)
         self.mode = mode
         self.folder_image = self.path_image / f"img_{self.mode}"
-
-        # config
-        self.col_img_download = col_img_download
-        self.col_text = col_text
-        make_dir(self.path_image)
 
         print(f"[Image Processing] {mode}")
 
     def load_images(self) -> pl.DataFrame:
-        lst = [(int(i.stem), str(i), i.exists()) for i in self.folder_image.glob("*/*.jpg")]
-        df = (
-            pl.DataFrame(lst, orient="row", schema=["index", "file_path", "exists"])
-            .with_columns(pl.col("index").cast(pl.UInt32))
-        )
+        # sorted files
+        files_sorted = sorted([*self.folder_image.glob("*/*.jpg")], key=lambda x: int(x.stem.split("_")[0]))
+
+        # file to df
+        lst = [(i.stem, str(i), i.exists()) for i in files_sorted]
+        df = pl.DataFrame(lst, orient="row", schema=["path_idx", "file_path"])
         if df.shape[0] == 0:
             print(f"-> Images Errors {self.mode}: {df.shape}")
         else:
@@ -41,18 +37,20 @@ class PipelineImage:
     def run(
         self,
         data,
+        col_image_url: str = "image_url",
+        col_text: str = "item_name",
         download: bool = False,
         num_processes: int = 4,
         num_workers: int = 16,
     ):
         # load data
-        data = data.with_row_index()
-        run = data[self.col_img_download].to_list()
+        data = data.with_row_index("img_index")
+        run = [(i["img_index"], i[col_image_url]) for i in data[["img_index", col_image_url]].to_dicts()]
         print(f"-> Base data {self.mode}: {data.shape}")
 
         # download
         if download:
-            downloader = ImageDownloader(
+            downloader = ImgDownloaderThreadProcess(
                 output_dir=self.folder_image,
                 num_processes=num_processes,
                 threads_per_process=num_workers,
@@ -66,10 +64,12 @@ class PipelineImage:
         data_img = self.load_images()
 
         # join
+        img_key = [f"{i[0]}_{i[1].split("/")[-1]}" for i in run]
         data = (
-            data.pipe(TextEDA.clean_text_pipeline_polars, col=self.col_text)
-            .join(data_img, on="index", how="left")
-            .filter(pl.col("exists"))
+            data.pipe(TextEDA.clean_text_pipeline_polars, col=col_text)
+            .with_columns(pl.Series("path_idx", img_key))
+            .join(data_img, on=["path_idx"], how="left")
+            .filter(pl.col("file_exists"))
         )
         if self.mode != "":
             data = data.select(pl.all().name.prefix(f"{self.mode}_"))

@@ -5,7 +5,7 @@ import numpy as np
 from rich import print
 from core_pro.ultilities import create_batch_index, make_dir
 from ..model.model import Model
-from func import _create_folder
+from .func import _create_folder
 
 
 class DataEmbedding:

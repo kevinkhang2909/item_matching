@@ -6,7 +6,7 @@ from datasets import concatenate_datasets, load_from_disk
 import numpy as np
 from rich import print
 from core_pro.ultilities import create_batch_index, make_dir
-from func import _create_folder, _round_score
+from .func import _create_folder, _round_score
 from re import search
 
 

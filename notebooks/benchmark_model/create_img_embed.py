@@ -92,23 +92,19 @@ file = path / f"data_sample_{cluster}_clean.parquet"
 
 # data loading
 query = f"""
-select item_id
-, item_name
-, item_name_clean
-, level1_global_be_category
-, file_path
+select *
 from read_parquet('{file}')
 limit 10000
 """
 df = duckdb.sql(query).pl().unique(["item_id"])
-dataset_chunk = Dataset.from_polars(df)
-
-# run
-result = []
-result = run_siglip(result, dataset_chunk)
-result = run_dinov2(result, dataset_chunk)
-
-# result
-df_result = pl.DataFrame(result, orient="row", schema=["name", "duration"])
-df_result.write_csv(path / "img_embed_benchmark.csv")
-print(df_result)
+# dataset_chunk = Dataset.from_polars(df)
+#
+# # run
+# result = []
+# result = run_siglip(result, dataset_chunk)
+# result = run_dinov2(result, dataset_chunk)
+#
+# # result
+# df_result = pl.DataFrame(result, orient="row", schema=["name", "duration"])
+# df_result.write_csv(path / "img_embed_benchmark.csv")
+# print(df_result)
