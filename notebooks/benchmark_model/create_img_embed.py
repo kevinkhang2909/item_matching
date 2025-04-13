@@ -6,11 +6,11 @@ import polars as pl
 from transformers import AutoProcessor, SiglipVisionModel, Dinov2WithRegistersModel
 from time import perf_counter
 import torch
-from accelerate.test_utils.testing import get_backend
+from accelerate import Accelerator
 from PIL import Image
 from torch.nn import functional as F
 
-device, _, _ = get_backend()
+device = Accelerator().device
 
 
 def run_siglip(result: list, run: list):

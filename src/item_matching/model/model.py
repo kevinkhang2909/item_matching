@@ -3,7 +3,7 @@ from PIL import Image
 from torch.nn import functional as F
 from transformers import AutoProcessor, SiglipVisionModel
 from FlagEmbedding import BGEM3FlagModel
-from accelerate.test_utils.testing import get_backend
+from accelerate import Accelerator
 from sentence_transformers import SentenceTransformer
 
 
@@ -14,7 +14,7 @@ class Model:
             pretrain_text: str = "BAAI/bge-m3",
             pretrain_image: str = "google/siglip-base-patch16-224"
     ):
-        self.device, _, _ = get_backend()
+        self.device = Accelerator().device
         self.max_length = max_length
         self.pretrain_text = pretrain_text
         self.pretrain_image = pretrain_image

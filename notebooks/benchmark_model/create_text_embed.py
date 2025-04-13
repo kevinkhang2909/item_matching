@@ -7,9 +7,9 @@ from FlagEmbedding import BGEM3FlagModel
 from sentence_transformers import SentenceTransformer
 from time import perf_counter
 from sentence_transformers.models import StaticEmbedding
-from accelerate.test_utils.testing import get_backend
+from accelerate import Accelerator
 
-device, _, _ = get_backend()
+device = Accelerator().device
 
 
 def run_bi_encoder(result: list, run: list):
