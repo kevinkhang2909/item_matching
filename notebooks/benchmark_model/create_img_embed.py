@@ -1,87 +1,131 @@
 import duckdb
-from datasets import Dataset
-import numpy as np
 import polars as pl
-from transformers import AutoProcessor, SiglipVisionModel, Dinov2WithRegistersModel
+from transformers import SiglipVisionModel, Dinov2WithRegistersModel
 from PIL import Image
-import torch
 from accelerate import Accelerator
-from torch.nn import functional as F
 from time import perf_counter
+import torch
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+from numpy.lib.format import open_memmap
 from core_pro.ultilities import make_sync_folder
+from tqdm.auto import tqdm
 
 device = Accelerator().device
+torch.backends.cudnn.benchmark = True
 
 
-def process_image(batch, col: str, img_processor, img_model):
-    images = [Image.open(i).convert("RGB") for i in batch[col]]
-    inputs = img_processor(images=images, return_tensors="pt").to(device)
-    with torch.inference_mode():
-        outputs = img_model(**inputs)
-    pooled_output = outputs.pooler_output.half()
-    norm_embed = F.normalize(pooled_output, p=2, dim=1).cpu().numpy()
-    return {"image_embed": norm_embed}
+class ImagePathsDataset(Dataset):
+    def __init__(self, file_paths: list, img_size: int = 224):
+        self.file_paths = file_paths
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize(
+                    img_size, interpolation=transforms.InterpolationMode.BICUBIC
+                ),
+                transforms.CenterCrop(img_size),
+                transforms.ConvertImageDtype(torch.float32),  # to [0,1]
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+
+    def __len__(self):
+        return len(self.file_paths)
+
+    def __getitem__(self, idx):
+        img = Image.open(self.file_paths[idx]).convert("RGB")
+        tensor = transforms.ToTensor()(img)  # HWC→CHW float32
+        return self.transform(tensor)
 
 
-def run_siglip(result: list, dataset_chunk):
-    # path
+def collate_batch(batch):
+    return torch.stack(batch, dim=0)
+
+
+def setup_siglip():
     pretrain_name = "google/siglip-base-patch16-224"
-    file_embed = path / "siglip_encode.npy"
-
-    # load model
-    img_processor = AutoProcessor.from_pretrained(pretrain_name, use_fast=True)
-    config = {
-        "pretrained_model_name_or_path": pretrain_name,
-        "torch_dtype": torch.bfloat16,
-    }
-    img_model = SiglipVisionModel.from_pretrained(**config).to(device)
-    img_model = torch.compile(img_model)
-
-    # inference
-    start = perf_counter()
-    dataset_chunk = dataset_chunk.map(
-        process_image,
-        batch_size=128,
-        batched=True,
-        fn_kwargs={"col": "file_path", "img_processor": img_processor, "img_model": img_model},
+    img_model = (
+        SiglipVisionModel.from_pretrained(
+            pretrain_name,
+            torch_dtype=torch.bfloat16,
+        )
+        .to(device)
+        .eval()
     )
-    dataset_chunk.set_format(type="numpy", columns=["image_embed"], output_all_columns=True)
-
-    # save
-    durations = perf_counter() - start
-    np.save(file_embed, dataset_chunk["image_embed"].astype(np.float64))
-    result.append((pretrain_name, durations))
-    return result
+    return torch.compile(img_model)
 
 
-def run_dinov2(result: list, dataset_chunk):
-    # path
+def setup_dinov2():
     pretrain_name = "facebook/dinov2-with-registers-base"
-    file_embed = path / "dinov2_encode.npy"
-
-    # load model
-    img_processor = AutoProcessor.from_pretrained(pretrain_name, use_fast=True)
-    config = {
-        "pretrained_model_name_or_path": pretrain_name,
-        "torch_dtype": torch.bfloat16,
-    }
-    img_model = Dinov2WithRegistersModel.from_pretrained(**config).to(device)
-    img_model = torch.compile(img_model)
-
-    # inference
-    start = perf_counter()
-    dataset_chunk = dataset_chunk.map(
-        process_image,
-        batch_size=128,
-        batched=True,
-        fn_kwargs={"col": "file_path", "img_processor": img_processor, "img_model": img_model},
+    img_model = (
+        Dinov2WithRegistersModel.from_pretrained(
+            pretrain_name,
+            torch_dtype=torch.bfloat16,
+        )
+        .to(device)
+        .eval()
     )
-    dataset_chunk.set_format(type="numpy", columns=["image_embed"], output_all_columns=True)
+    return torch.compile(img_model)
 
-    # save
+
+def fast_img_inference(
+    result: list,
+    file_paths: list[str],
+    batch_size: int = 128,
+    num_workers: int = 8,
+    model: str = "dinov2",
+):
+    # 1) Prepare DataLoader ---
+    ds = ImagePathsDataset(file_paths, img_size=224)
+    loader = DataLoader(
+        ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+        collate_fn=collate_batch,
+    )
+
+    # 2) Load & compile model in mixed precision
+    device = torch.device("cuda")
+    if model == "siglip":
+        img_model = setup_siglip()
+    else:
+        img_model = setup_dinov2()
+
+    # 3) Pre‑allocate a .npy memmap for all embeddings
+    total = len(ds)
+    dim = img_model.config.hidden_size  # e.g. 1024
+    mmap = open_memmap(
+        filename=str(path / f"{model}_embeds.npy"),
+        mode="w+",
+        dtype="float32",
+        shape=(total, dim),
+    )
+
+    # 4) Inference + save loop
+    start = perf_counter()
+    idx = 0
+    with torch.inference_mode():
+        for batch in tqdm(loader):
+            # async copy to GPU
+            batch = batch.to(device, non_blocking=True)
+            outputs = img_model(batch)  # bfloat16
+            pooled = outputs.pooler_output.half()  # fp16
+            normed = F.normalize(pooled, p=2, dim=1)  # still on GPU
+
+            emb = normed.cpu().numpy().astype("float32")  # (B, dim)
+            bs = emb.shape[0]
+            mmap[idx : idx + bs] = emb  # write into .npy
+            idx += bs
+
     durations = perf_counter() - start
-    np.save(file_embed, dataset_chunk["image_embed"].astype(np.float64))
-    result.append((pretrain_name, durations))
+    mmap.flush()  # ensure all data is on disk
+
+    result.append((model, durations))
     return result
 
 
@@ -94,17 +138,16 @@ file = path / f"data_sample_{cluster}_clean.parquet"
 query = f"""
 select *
 from read_parquet('{file}')
-limit 10000
 """
 df = duckdb.sql(query).pl().unique(["item_id"])
-# dataset_chunk = Dataset.from_polars(df)
-#
-# # run
-# result = []
-# result = run_siglip(result, dataset_chunk)
-# result = run_dinov2(result, dataset_chunk)
-#
-# # result
-# df_result = pl.DataFrame(result, orient="row", schema=["name", "duration"])
-# df_result.write_csv(path / "img_embed_benchmark.csv")
-# print(df_result)
+file_paths = df["file_path"].to_list()
+
+# run
+result = []
+result = fast_img_inference(result=result, file_paths=file_paths, model="siglip")
+result = fast_img_inference(result=result, file_paths=file_paths, model="dinov2")
+
+# result
+df_result = pl.DataFrame(result, orient="row", schema=["name", "duration"])
+df_result.write_csv(path / "img_embed_benchmark.csv")
+print(df_result)

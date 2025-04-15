@@ -3,65 +3,40 @@ from core_pro.ultilities import make_sync_folder
 from datasets import Dataset
 import numpy as np
 import polars as pl
+import torch
 from FlagEmbedding import BGEM3FlagModel
 from sentence_transformers import SentenceTransformer
-from time import perf_counter
 from sentence_transformers.models import StaticEmbedding
 from accelerate import Accelerator
+from time import perf_counter
 
 device = Accelerator().device
 
 
-def run_bi_encoder(result: list, run: list):
-    pretrain_name = "bkai-foundation-models/vietnamese-bi-encoder"
-    file_embed = path / "bi_encode.npy"
-    model = SentenceTransformer(pretrain_name, model_kwargs={"torch_dtype": "float16"})
-
-    start = perf_counter()
-    embeddings = model.encode(
-        run,
-        batch_size=512,
-        show_progress_bar=True,
-        device="cuda",
-        normalize_embeddings=True,
-        convert_to_numpy=True,
-        max_seq_length=80,
-    )
-    durations = perf_counter() - start
-    np.save(file_embed, embeddings.astype(np.float64))
-    result.append((pretrain_name, durations))
-    return result
-
-
-def run_bge(result: list, run: list):
+def setup_bge(texts: list):
     pretrain_name = "BAAI/bge-m3"
-    file_embed = path / "bge_encode.npy"
-    model = BGEM3FlagModel(pretrain_name, use_fp16=True)
+    model = BGEM3FlagModel(pretrain_name, use_fp16=True, device=device, normalize_embeddings=True)
 
-    start = perf_counter()
     embeddings = model.encode(
-        run,
+        texts,
         batch_size=8,
         max_length=80,
         return_dense=True,
         return_sparse=False,
         return_colbert_vecs=False,
     )["dense_vecs"]
-    durations = perf_counter() - start
-    np.save(file_embed, embeddings.astype(np.float64))
-    result.append((pretrain_name, durations))
-    return result
+    return embeddings
 
 
-def run_bge_compress(result: list, run: list):
+def setup_bge_compress(texts: list):
     pretrain_name = "BAAI/bge-m3"
-    file_embed = path / "bge_encode.npy"
     static_embedding = StaticEmbedding.from_distillation(pretrain_name, device=device, pca_dims=512)
-    model = SentenceTransformer(modules=[static_embedding])
+    model = SentenceTransformer(modules=[static_embedding]).eval()
+    model.eval()
+    model = torch.compile(model)
 
-    start = perf_counter()
     embeddings = model.encode(
-        run,
+        texts,
         batch_size=512,
         show_progress_bar=True,
         device=device,
@@ -69,9 +44,20 @@ def run_bge_compress(result: list, run: list):
         convert_to_numpy=True,
         max_seq_length=80,
     )
+    return embeddings
+
+
+def fast_text_inference(result: list, texts: list, model="bgem3"):
+    start = perf_counter()
+    if model == "bgem3_compress":
+        embeddings = setup_bge_compress(texts)
+    else:
+        embeddings = setup_bge(texts)
     durations = perf_counter() - start
-    np.save(file_embed, embeddings.astype(np.float64))
-    result.append((pretrain_name, durations))
+
+    file_embed = path / f"{model}_embeds.npy"
+    np.save(file_embed, embeddings.astype(np.float32))
+    result.append((model, durations))
     return result
 
 
@@ -85,18 +71,17 @@ query = f"""
 select item_id
 , item_name
 from read_parquet('{file}')
-limit 10000
 """
 df = duckdb.sql(query).pl().unique(["item_id"])
 dataset_chunk = Dataset.from_polars(df)
-run = df["item_name"].to_list()
+texts = df["item_name"].to_list()
 
 # run
 result = []
-result = run_bi_encoder(result, run)
-result = run_bge(result, run)
+result = fast_text_inference(result=result, texts=texts, model="bgem3")
+result = fast_text_inference(result=result, texts=texts, model="bgem3_compress")
 
 # result
 df_result = pl.DataFrame(result, orient="row", schema=["name", "duration"])
-df_result.write_csv(path / "img_embed_benchmark.csv")
+df_result.write_csv(path / "text_embed_benchmark.csv")
 print(df_result)

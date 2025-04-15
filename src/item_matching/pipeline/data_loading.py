@@ -1,11 +1,134 @@
+from PIL import Image
 import polars as pl
-from datasets import Dataset, concatenate_datasets
-from pathlib import Path
 import numpy as np
+from pathlib import Path
 from rich import print
-from core_pro.ultilities import create_batch_index, make_dir
-from ..model.model import Model
+from datasets import Dataset, concatenate_datasets
+from numpy.lib.format import open_memmap
+import torch
+import torch.nn.functional as F
+from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader
+from accelerate import Accelerator
+from core_pro.ultilities import create_batch_index
+from tqdm.auto import tqdm
+from FlagEmbedding import BGEM3FlagModel
+from transformers import Dinov2WithRegistersModel
 from .func import _create_folder
+
+
+device = Accelerator().device
+
+def get_text_model():
+    return BGEM3FlagModel(
+        "BAAI/bge-m3",
+        use_fp16=True,
+        device=device,
+        normalize_embeddings=True
+    )
+
+
+def text_inference(text_model, save_file_path: Path, iterable_list: list[str]):
+    embeddings = text_model.encode(
+        iterable_list,
+        batch_size=512,
+        max_length=50,
+        return_dense=True,
+        return_sparse=False,
+        return_colbert_vecs=False,
+    )["dense_vecs"]
+    np.save(save_file_path, embeddings.astype(np.float32))
+    return embeddings
+
+
+def collate_batch(batch):
+    return torch.stack(batch, dim=0)
+
+
+class ImagePathsDataset(Dataset):
+    def __init__(self, file_paths: list, img_size: int = 224):
+        self.file_paths = file_paths
+        self.transform = transforms.Compose(
+            [
+                # transforms.Resize(
+                #     img_size, interpolation=transforms.InterpolationMode.BICUBIC
+                # ),
+                # transforms.CenterCrop(img_size),
+                transforms.ConvertImageDtype(torch.float32),  # to [0,1]
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+
+    def __len__(self):
+        return len(self.file_paths)
+
+    def __getitem__(self, idx):
+        img = Image.open(self.file_paths[idx]).convert("RGB")
+        tensor = transforms.ToTensor()(img)  # HWC→CHW float32
+        return self.transform(tensor)
+
+
+def get_img_model():
+    pretrain_name = "facebook/dinov2-with-registers-base"
+    img_model = (
+        Dinov2WithRegistersModel.from_pretrained(
+            pretrain_name,
+            torch_dtype=torch.bfloat16,
+        )
+        .to(device)
+        .eval()
+    )
+    return torch.compile(img_model)
+
+
+def img_inference(
+    img_model,
+    save_file_path: Path,
+    iterable_list: list[str],
+    batch_size: int = 128,
+    num_workers: int = 8,
+):
+    # 1) Prepare DataLoader ---
+    ds = ImagePathsDataset(iterable_list, img_size=224)
+    loader = DataLoader(
+        ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+        collate_fn=collate_batch,
+    )
+
+    # 2) Pre‑allocate a .npy memmap for all embeddings
+    total = len(ds)
+    dim = img_model.config.hidden_size  # e.g. 1024
+    mmap = open_memmap(
+        filename=str(save_file_path),
+        mode="w+",
+        dtype="float32",
+        shape=(total, dim),
+    )
+
+    # 3) Inference + save loop
+    idx = 0
+    with torch.inference_mode():
+        for batch in tqdm(loader):
+            # async copy to GPU
+            batch = batch.to(device, non_blocking=True)
+            outputs = img_model(batch)  # bfloat16
+            pooled = outputs.pooler_output.half()  # fp16
+            normed = F.normalize(pooled, p=2, dim=1)  # still on GPU
+
+            emb = normed.cpu().numpy().astype("float32")  # (B, dim)
+            bs = emb.shape[0]
+            mmap[idx : idx + bs] = emb  # write into .npy
+            idx += bs
+
+    mmap.flush()  # ensure all data is on disk
+    embeddings = np.memmap(save_file_path, dtype=np.float32, mode='r', shape=(total, dim))
+    return embeddings
 
 
 class DataEmbedding:
@@ -32,15 +155,14 @@ class DataEmbedding:
         self._prepare_col_input_model()
 
     def _prepare_col_input_model(self):
-        self.model = Model()
         if self.MATCH_BY == "text":
             self.col_input = f"{self.MODE}_item_name_clean"
             self.col_embedding = f"{self.MATCH_BY}_embed"
-            self.model.get_text_model()
+            self.text_model = get_text_model()
         else:
             self.col_input = f"{self.MODE}_file_path"
-            self.model.get_img_model()
             self.col_embedding = f"{self.MATCH_BY}_embed"
+            self.img_model = get_img_model()
 
     def load(self, data: pl.DataFrame):
         # Log total chunks
@@ -67,29 +189,21 @@ class DataEmbedding:
 
             # Process dataset
             if self.MATCH_BY == "text":
-                embeddings = self.model.process_text(dataset_chunk[self.col_input])
-                dset_embed = Dataset.from_dict({self.col_embedding: embeddings})
-                dataset_chunk = concatenate_datasets([dataset_chunk, dset_embed], axis=1)
+                embeddings = text_inference(
+                    text_model=self.text_model,
+                    save_file_path=array_name,
+                    iterable_list=dataset_chunk[self.col_input]
+                )
             else:
-                dataset_chunk = dataset_chunk.map(
-                    self.model.process_image,
-                    batch_size=512,
-                    batched=True,
-                    fn_kwargs={"col": self.col_input},
+                embeddings = img_inference(
+                    img_model=self.img_model,
+                    save_file_path=array_name,
+                    iterable_list=dataset_chunk[self.col_input]
                 )
 
-            # Normalize
-            dataset_chunk.set_format(type="torch", columns=[self.col_embedding], output_all_columns=True)
-            if self.MATCH_BY == "image":
-                dataset_chunk = dataset_chunk.map(
-                    Model.pp_normalize,
-                    batched=True,
-                    fn_kwargs={"col": self.col_embedding},
-                )
-            dataset_chunk.set_format(
-                type="numpy", columns=[self.col_embedding], output_all_columns=True
-            )
+            # Concat
+            dset_embed = Dataset.from_dict({self.col_embedding: embeddings})
+            dataset_chunk = concatenate_datasets([dataset_chunk, dset_embed], axis=1)
 
             # Save chunk
-            np.save(array_name, dataset_chunk[self.col_embedding])
             dataset_chunk.save_to_disk(str(dataset_name))

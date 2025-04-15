@@ -27,7 +27,7 @@ class PipelineImage:
 
         # file to df
         lst = [(i.stem, str(i), i.exists()) for i in files_sorted]
-        df = pl.DataFrame(lst, orient="row", schema=["path_idx", "file_path"])
+        df = pl.DataFrame(lst, orient="row", schema=["path_idx", "file_path", "file_exists"])
         if df.shape[0] == 0:
             print(f"-> Images Errors {self.mode}: {df.shape}")
         else:
@@ -58,7 +58,7 @@ class PipelineImage:
                 batch_size=1000,
                 images_per_folder=1000,
             )
-            downloader.download_images(run)
+            downloader.run(run)
 
         # load data image
         data_img = self.load_images()
@@ -70,6 +70,7 @@ class PipelineImage:
             .with_columns(pl.Series("path_idx", img_key))
             .join(data_img, on=["path_idx"], how="left")
             .filter(pl.col("file_exists"))
+            .drop(["img_index", "path_idx", "file_exists"])
         )
         if self.mode != "":
             data = data.select(pl.all().name.prefix(f"{self.mode}_"))

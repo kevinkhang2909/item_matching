@@ -31,5 +31,6 @@ where
     o.grass_date = current_date - interval '1' day
     and o.is_bi_excluded = 0
     and o.is_net_order = 1
+    and o.is_official_shop = 1
 limit
-    10000
+    100000

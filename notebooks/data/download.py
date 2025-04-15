@@ -35,7 +35,6 @@ if __name__ == "__main__":
         ,concat('http://f.shopee.vn/file/', UNNEST(array_slice(string_split(images, ','), 1, 1))) image_url
         from read_parquet('{str(path / f'{file.stem}.parquet')}')
         order by item_id, images
-        limit 100
         """
         df = duckdb.sql(query).pl().unique(["item_id"])
         EDA_Dataframe(df, ["item_id"]).check_duplicate()
@@ -46,7 +45,7 @@ if __name__ == "__main__":
             col_text="item_name",
             col_image_url="image_url",
             download=True,
-            num_workers=4,
+            num_workers=16,
             num_processes=4
         )
         df.write_parquet(path / f"data_sample_{c}_clean.parquet")
