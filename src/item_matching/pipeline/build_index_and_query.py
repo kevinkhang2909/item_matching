@@ -24,7 +24,7 @@ class BuildIndexAndQuery:
         self.QUERY_SIZE = QUERY_SIZE
         self.MATCH_BY = MATCH_BY
         self.file_export_name = file_export_name
-        self._prepare_col_input_model()
+        self.col_embedding = f"{self.MATCH_BY}_embed"
 
         # index
         self.path_index = _create_folder(path, "index", one=True)
@@ -50,12 +50,6 @@ class BuildIndexAndQuery:
         make_dir(self.path_result_query_score)
         make_dir(self.path_result_final)
         self.file_export_final = self.path_result_final / f"{self.file_export_name}.parquet"
-
-    def _prepare_col_input_model(self):
-        if self.MATCH_BY == "text":
-            self.col_embedding = f"{self.MATCH_BY}_embed"
-        else:
-            self.col_embedding = f"{self.MATCH_BY}_embed"
 
     def build(self):
         # Build index
