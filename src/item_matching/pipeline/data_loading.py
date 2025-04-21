@@ -3,7 +3,6 @@ import polars as pl
 import numpy as np
 from pathlib import Path
 from rich import print
-from datasets import Dataset, concatenate_datasets
 from numpy.lib.format import open_memmap
 import torch
 import torch.nn.functional as F
@@ -172,7 +171,7 @@ class DataEmbedding:
         # Process and save each chunk
         for i, idx in run.items():
             # Check if exists:
-            dataset_name = self.path_ds / f"{i}"
+            dataset_name = self.path_ds / f"{i}.parquet"
             array_name = self.path_array / f"{i}.npy"
             if dataset_name.exists():
                 continue
@@ -182,7 +181,7 @@ class DataEmbedding:
             if start_idx == end_idx:  # prevent sample size is 1
                 end_idx = None
 
-            dataset_chunk = Dataset.from_polars(data[start_idx:end_idx])
+            dataset_chunk = data[start_idx:end_idx]
             print(
                 f"[DataEmbedding] Shard [{i}/{num_chunks - 1}]: start {start_idx:,.0f} end {end_idx:,.0f}"
             )
@@ -192,18 +191,18 @@ class DataEmbedding:
                 embeddings = text_inference(
                     text_model=self.text_model,
                     save_file_path=array_name,
-                    iterable_list=dataset_chunk[self.col_input]
+                    iterable_list=dataset_chunk[self.col_input].to_list()
                 )
             else:
                 embeddings = img_inference(
                     img_model=self.img_model,
                     save_file_path=array_name,
-                    iterable_list=dataset_chunk[self.col_input]
+                    iterable_list=dataset_chunk[self.col_input].to_list()
                 )
 
             # Concat
-            dset_embed = Dataset.from_dict({self.col_embedding: embeddings})
-            dataset_chunk = concatenate_datasets([dataset_chunk, dset_embed], axis=1)
+            dset_embed = pl.DataFrame({self.col_embedding: embeddings})
+            dataset_chunk = pl.concat([dataset_chunk, dset_embed], how="horizontal")
 
             # Save chunk
-            dataset_chunk.save_to_disk(str(dataset_name))
+            dataset_chunk.write_parquet(str(dataset_name))

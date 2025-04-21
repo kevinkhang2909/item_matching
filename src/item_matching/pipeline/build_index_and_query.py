@@ -2,7 +2,7 @@ from pathlib import Path
 import polars as pl
 from time import perf_counter
 from autofaiss import build_index
-from datasets import concatenate_datasets, load_from_disk
+from datasets import Dataset
 import numpy as np
 from rich import print
 from core_pro.ultilities import create_batch_index, make_dir
@@ -76,8 +76,8 @@ class BuildIndexAndQuery:
         dataset = {}
         for i in ["db", "q"]:
             files = sorted(self.dataset_dict[f"{i}_ds_path"].glob("*"), key=self.sort_key_ds)
-            lst_ds = [load_from_disk(str(f)) for f in files]
-            dataset[i] = concatenate_datasets(lst_ds)
+            df = pl.concat([pl.read_parquet(f) for f in files])
+            dataset[i] = Dataset.from_polars(df)
 
         # Add index
         dataset["db"].load_faiss_index(self.col_embedding, self.file_index)
