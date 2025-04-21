@@ -58,6 +58,7 @@ class PipelineMatch:
         return pl.read_parquet(file).filter(filter_)
 
     def _remove_cache(self):
+        print(f"[Clean Cache]")
         folder_list = ["index", "result", "db_array", "db_ds", "q_array", "q_ds", "array", "ds"]
         for name in folder_list:
             rm_all_folder(self.ROOT_PATH / name)
@@ -119,7 +120,7 @@ class PipelineMatch:
             build.build()
             build.query()
 
-        self._remove_cache()
+            self._remove_cache()
 
         time_perf = perf_counter() - start
         print(
