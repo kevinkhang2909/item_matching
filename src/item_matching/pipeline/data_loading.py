@@ -12,7 +12,7 @@ from accelerate import Accelerator
 from core_pro.ultilities import create_batch_index
 from tqdm.auto import tqdm
 from FlagEmbedding import BGEM3FlagModel
-from transformers import Dinov2WithRegistersModel, AutoModel
+from transformers import Dinov2WithRegistersModel, SiglipVisionModel, SiglipConfig
 from .func import _create_folder
 
 
@@ -70,13 +70,14 @@ class ImagePathsDataset(Dataset):
 def get_img_model():
     pretrain_name = "google/siglip-base-patch16-224"
     img_model = (
-        AutoModel.from_pretrained(
+        SiglipVisionModel.from_pretrained(
             pretrain_name,
             torch_dtype=torch.bfloat16,
         )
         .to(device)
         .eval()
     )
+    config = SiglipConfig.from_pretrained(pretrain_name)
 
     # pretrain_name = "facebook/dinov2-with-registers-base"
     # img_model = (
@@ -87,11 +88,13 @@ def get_img_model():
     #     .to(device)
     #     .eval()
     # )
-    return torch.compile(img_model)
+    # return torch.compile(img_model)
+    return img_model, config
 
 
 def img_inference(
     img_model,
+    config,
     save_file_path: Path,
     iterable_list: list[str],
     batch_size: int = 128,
@@ -108,18 +111,8 @@ def img_inference(
         collate_fn=collate_batch,
     )
 
-    # 2) Pre‑allocate a .npy memmap for all embeddings
-    total = len(ds)
-    dim = img_model.config.hidden_size  # e.g. 1024
-    mmap = open_memmap(
-        filename=str(save_file_path),
-        mode="w+",
-        dtype="float32",
-        shape=(total, dim),
-    )
-
-    # 3) Inference + save loop
-    idx = 0
+    # 2) Inference + collect embeddings
+    all_embs = []
     with torch.inference_mode():
         for batch in tqdm(loader):
             # async copy to GPU
@@ -129,14 +122,10 @@ def img_inference(
             normed = F.normalize(pooled, p=2, dim=1)  # still on GPU
 
             emb = normed.cpu().numpy().astype("float32")  # (B, dim)
-            bs = emb.shape[0]
-            mmap[idx : idx + bs] = emb  # write into .npy
-            idx += bs
+            all_embs.append(emb)
 
-    mmap.flush()  # ensure all data is on disk
-    embeddings = np.memmap(
-        save_file_path, dtype=np.float32, mode="r", shape=(total, dim)
-    )
+    embeddings = np.concatenate(all_embs, axis=0)
+    np.save(save_file_path, embeddings)
     return embeddings
 
 
@@ -171,7 +160,7 @@ class DataEmbedding:
         else:
             self.col_input = f"{self.MODE}_file_path"
             self.col_embedding = f"{self.MATCH_BY}_embed"
-            self.img_model = get_img_model()
+            self.img_model, self.config = get_img_model()
 
     def load(self, data: pl.DataFrame):
         # Log total chunks
@@ -206,6 +195,7 @@ class DataEmbedding:
             else:
                 embeddings = img_inference(
                     img_model=self.img_model,
+                    config=self.config,
                     save_file_path=array_name,
                     iterable_list=dataset_chunk[self.col_input].to_list(),
                 )
