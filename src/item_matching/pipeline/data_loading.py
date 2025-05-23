@@ -12,18 +12,16 @@ from accelerate import Accelerator
 from core_pro.ultilities import create_batch_index
 from tqdm.auto import tqdm
 from FlagEmbedding import BGEM3FlagModel
-from transformers import Dinov2WithRegistersModel
+from transformers import Dinov2WithRegistersModel, AutoModel
 from .func import _create_folder
 
 
 device = Accelerator().device
 
+
 def get_text_model():
     return BGEM3FlagModel(
-        "BAAI/bge-m3",
-        use_fp16=True,
-        device=device,
-        normalize_embeddings=True
+        "BAAI/bge-m3", use_fp16=True, device=device, normalize_embeddings=True
     )
 
 
@@ -70,15 +68,25 @@ class ImagePathsDataset(Dataset):
 
 
 def get_img_model():
-    pretrain_name = "facebook/dinov2-with-registers-base"
+    pretrain_name = "google/siglip-base-patch16-224"
     img_model = (
-        Dinov2WithRegistersModel.from_pretrained(
+        AutoModel.from_pretrained(
             pretrain_name,
             torch_dtype=torch.bfloat16,
         )
         .to(device)
         .eval()
     )
+
+    # pretrain_name = "facebook/dinov2-with-registers-base"
+    # img_model = (
+    #     Dinov2WithRegistersModel.from_pretrained(
+    #         pretrain_name,
+    #         torch_dtype=torch.bfloat16,
+    #     )
+    #     .to(device)
+    #     .eval()
+    # )
     return torch.compile(img_model)
 
 
@@ -126,17 +134,19 @@ def img_inference(
             idx += bs
 
     mmap.flush()  # ensure all data is on disk
-    embeddings = np.memmap(save_file_path, dtype=np.float32, mode='r', shape=(total, dim))
+    embeddings = np.memmap(
+        save_file_path, dtype=np.float32, mode="r", shape=(total, dim)
+    )
     return embeddings
 
 
 class DataEmbedding:
     def __init__(
-            self,
-            path: Path,
-            MODE: str,
-            MATCH_BY: str = "text",
-            SHARD_SIZE: int = 1_500_000,
+        self,
+        path: Path,
+        MODE: str,
+        MATCH_BY: str = "text",
+        SHARD_SIZE: int = 1_500_000,
     ):
         # Config
         self.MATCH_BY = MATCH_BY
@@ -191,13 +201,13 @@ class DataEmbedding:
                 embeddings = text_inference(
                     text_model=self.text_model,
                     save_file_path=array_name,
-                    iterable_list=dataset_chunk[self.col_input].to_list()
+                    iterable_list=dataset_chunk[self.col_input].to_list(),
                 )
             else:
                 embeddings = img_inference(
                     img_model=self.img_model,
                     save_file_path=array_name,
-                    iterable_list=dataset_chunk[self.col_input].to_list()
+                    iterable_list=dataset_chunk[self.col_input].to_list(),
                 )
 
             # Concat

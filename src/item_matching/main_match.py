@@ -59,7 +59,16 @@ class PipelineMatch:
 
     def _remove_cache(self):
         print(f"[Clean Cache]")
-        folder_list = ["index", "result", "db_array", "db_ds", "q_array", "q_ds", "array", "ds"]
+        folder_list = [
+            "index",
+            "result",
+            "db_array",
+            "db_ds",
+            "q_array",
+            "q_ds",
+            "array",
+            "ds",
+        ]
         for name in folder_list:
             rm_all_folder(self.ROOT_PATH / name)
 
@@ -85,9 +94,7 @@ class PipelineMatch:
             )
             chunk_db = self._load_data(cat=cat, mode="db", file=self.PATH_DB)
             chunk_q = self._load_data(cat=cat, mode="q", file=self.PATH_Q)
-            print(
-                f"-> Database shape {chunk_db.shape}, Query shape {chunk_q.shape}"
-            )
+            print(f"-> Database shape {chunk_db.shape}, Query shape {chunk_q.shape}")
 
             if chunk_q.shape[0] < 2 or chunk_db.shape[0] < 2:
                 print(f"[PIPELINE] Database/Query have not enough data")
@@ -98,14 +105,14 @@ class PipelineMatch:
                 path=self.ROOT_PATH,
                 MODE="db",
                 MATCH_BY=self.MATCH_BY,
-                SHARD_SIZE=self.SHARD_SIZE
+                SHARD_SIZE=self.SHARD_SIZE,
             ).load(data=chunk_db)
 
             DataEmbedding(
                 path=self.ROOT_PATH,
                 MODE="q",
                 MATCH_BY=self.MATCH_BY,
-                SHARD_SIZE=self.SHARD_SIZE
+                SHARD_SIZE=self.SHARD_SIZE,
             ).load(data=chunk_q)
 
             # index and query

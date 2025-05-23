@@ -11,7 +11,6 @@ class PipelineImage:
         self,
         path_image: Path,
         mode: str = "",
-
     ):
         # path
         self.path_image = path_image
@@ -23,11 +22,16 @@ class PipelineImage:
 
     def load_images(self) -> pl.DataFrame:
         # sorted files
-        files_sorted = sorted([*self.folder_image.glob("*/*.jpg")], key=lambda x: int(x.stem.split("_")[0]))
+        files_sorted = sorted(
+            [*self.folder_image.glob("*/*.jpg")],
+            key=lambda x: int(x.stem.split("_")[0]),
+        )
 
         # file to df
         lst = [(i.stem, str(i), i.exists()) for i in files_sorted]
-        df = pl.DataFrame(lst, orient="row", schema=["path_idx", "file_path", "file_exists"])
+        df = pl.DataFrame(
+            lst, orient="row", schema=["path_idx", "file_path", "file_exists"]
+        )
         if df.shape[0] == 0:
             print(f"-> Images Errors {self.mode}: {df.shape}")
         else:
@@ -45,7 +49,10 @@ class PipelineImage:
     ):
         # load data
         data = data.with_row_index("img_index")
-        run = [(i["img_index"], i[col_image_url]) for i in data[["img_index", col_image_url]].to_dicts()]
+        run = [
+            (i["img_index"], i[col_image_url])
+            for i in data[["img_index", col_image_url]].to_dicts()
+        ]
         print(f"-> Base data {self.mode}: {data.shape}")
 
         # download

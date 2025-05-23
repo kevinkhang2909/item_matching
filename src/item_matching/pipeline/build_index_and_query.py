@@ -28,8 +28,8 @@ class BuildIndexAndQuery:
 
         # index
         self.path_index = _create_folder(path, "index", one=True)
-        self.file_index = self.path_index / f"ip.index"
-        self.file_index_json = str(self.path_index / f"index.json")
+        self.file_index = self.path_index / "ip.index"
+        self.file_index_json = str(self.path_index / "index.json")
 
         # array
         self.path_array_db = path / "db_array"
@@ -45,17 +45,19 @@ class BuildIndexAndQuery:
         self._create_folder_result()
 
     def _create_folder_result(self):
-        self.path_result_query_score = self.path / f"result"
+        self.path_result_query_score = self.path / "result"
         self.path_result_final = self.path / f"result_match_{self.MATCH_BY}"
         make_dir(self.path_result_query_score)
         make_dir(self.path_result_final)
-        self.file_export_final = self.path_result_final / f"{self.file_export_name}.parquet"
+        self.file_export_final = (
+            self.path_result_final / f"{self.file_export_name}.parquet"
+        )
 
     def build(self):
         # Build index
         start = perf_counter()
         if not self.file_index.exists():
-            print(f"[BuildIndex] Start")
+            print("[BuildIndex] Start")
             try:
                 build_index(
                     str(self.path_array_db),
@@ -70,12 +72,14 @@ class BuildIndexAndQuery:
                 print(f"[BuildIndex] Error: {e}")
                 return None
         else:
-            print(f"[BuildIndex] Index is existed")
+            print("[BuildIndex] Index is existed")
 
     def load_dataset(self):
         dataset = {}
         for i in ["db", "q"]:
-            files = sorted(self.dataset_dict[f"{i}_ds_path"].glob("*"), key=self.sort_key_ds)
+            files = sorted(
+                self.dataset_dict[f"{i}_ds_path"].glob("*"), key=self.sort_key_ds
+            )
             df = pl.concat([pl.read_parquet(f) for f in files])
             dataset[i] = Dataset.from_polars(df)
 
@@ -119,7 +123,9 @@ class BuildIndexAndQuery:
                 print(f"[red]No matches found for {i}[/]")
                 continue
 
-            dict_ = {f"score_{self.col_embedding}": [_round_score(arr) for arr in score]}
+            dict_ = {
+                f"score_{self.col_embedding}": [_round_score(arr) for arr in score]
+            }
             df_score = pl.DataFrame(dict_)
             df_score.write_parquet(file_name_score)
 
@@ -131,19 +137,29 @@ class BuildIndexAndQuery:
             del score, result, df_score, df_result
 
         # Concat all files
-        dataset_q = dataset_q.remove_columns(self.col_embedding)  # prevent polars issues
+        dataset_q = dataset_q.remove_columns(
+            self.col_embedding
+        )  # prevent polars issues
         del dataset_db
 
         # score
-        files_score = sorted(self.path_result_query_score.glob("score*.parquet"), key=self.sort_key_result)
+        files_score = sorted(
+            self.path_result_query_score.glob("score*.parquet"),
+            key=self.sort_key_result,
+        )
         df_score = pl.concat([pl.read_parquet(f) for f in files_score])
 
         # result
-        files_result = sorted(self.path_result_query_score.glob("result*.parquet"), key=self.sort_key_result)
+        files_result = sorted(
+            self.path_result_query_score.glob("result*.parquet"),
+            key=self.sort_key_result,
+        )
         df_result = pl.concat([pl.read_parquet(f) for f in files_result])
 
         # combine to data
-        df_match = pl.concat([dataset_q.to_polars(), df_result, df_score], how="horizontal")
+        df_match = pl.concat(
+            [dataset_q.to_polars(), df_result, df_score], how="horizontal"
+        )
 
         # explode result
         col_explode = [i for i in df_match.columns if search("db|score", i)]

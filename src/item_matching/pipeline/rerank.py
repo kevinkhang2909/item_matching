@@ -8,11 +8,11 @@ from core_pro.ultilities import make_dir
 
 class ReRank:
     def __init__(
-            self,
-            path: Path,
-            db_col_idx: str = "db_item_id",
-            q_col_idx: str = "q_item_id",
-            col_text: str = "item_name"
+        self,
+        path: Path,
+        db_col_idx: str = "db_item_id",
+        q_col_idx: str = "q_item_id",
+        col_text: str = "item_name",
     ):
         # path
         self.path = path
@@ -26,7 +26,9 @@ class ReRank:
         self.file_image = [*self.path_image.glob("*.parquet")]
 
         # all category
-        self.all_category = set([i.stem for i in self.file_text] + [i.stem for i in self.file_image])
+        self.all_category = set(
+            [i.stem for i in self.file_text] + [i.stem for i in self.file_image]
+        )
 
         # col
         self.col_text = col_text
@@ -90,7 +92,9 @@ class ReRank:
             if file_name.exists():
                 continue
             df_dict = self._data_check(cat)
-            df = self.rerank_score(data_text=df_dict["text"], data_image=df_dict["image"])
+            df = self.rerank_score(
+                data_text=df_dict["text"], data_image=df_dict["image"]
+            )
             if not df.is_empty():
                 df.write_parquet(file_name)
         print(f"[RERANK]: Done {total_cat} categories")
