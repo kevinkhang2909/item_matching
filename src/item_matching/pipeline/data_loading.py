@@ -3,7 +3,6 @@ import polars as pl
 import numpy as np
 from pathlib import Path
 from rich import print
-from numpy.lib.format import open_memmap
 import torch
 import torch.nn.functional as F
 from torchvision import transforms
@@ -12,7 +11,7 @@ from accelerate import Accelerator
 from core_pro.ultilities import create_batch_index
 from tqdm.auto import tqdm
 from FlagEmbedding import BGEM3FlagModel
-from transformers import Dinov2WithRegistersModel, SiglipVisionModel, SiglipConfig
+from transformers import Dinov2WithRegistersModel, Siglip2VisionModel
 from .func import _create_folder
 
 
@@ -68,16 +67,15 @@ class ImagePathsDataset(Dataset):
 
 
 def get_img_model():
-    pretrain_name = "google/siglip-base-patch16-224"
+    pretrain_name = "google/siglip2-base-patch16-224"
     img_model = (
-        SiglipVisionModel.from_pretrained(
+        Siglip2VisionModel.from_pretrained(
             pretrain_name,
             torch_dtype=torch.bfloat16,
         )
         .to(device)
         .eval()
     )
-    config = SiglipConfig.from_pretrained(pretrain_name)
 
     # pretrain_name = "facebook/dinov2-with-registers-base"
     # img_model = (
@@ -89,12 +87,11 @@ def get_img_model():
     #     .eval()
     # )
     # return torch.compile(img_model)
-    return img_model, config
+    return img_model
 
 
 def img_inference(
     img_model,
-    config,
     save_file_path: Path,
     iterable_list: list[str],
     batch_size: int = 128,
@@ -160,7 +157,7 @@ class DataEmbedding:
         else:
             self.col_input = f"{self.MODE}_file_path"
             self.col_embedding = f"{self.MATCH_BY}_embed"
-            self.img_model, self.config = get_img_model()
+            self.img_model = get_img_model()
 
     def load(self, data: pl.DataFrame):
         # Log total chunks
@@ -195,7 +192,6 @@ class DataEmbedding:
             else:
                 embeddings = img_inference(
                     img_model=self.img_model,
-                    config=self.config,
                     save_file_path=array_name,
                     iterable_list=dataset_chunk[self.col_input].to_list(),
                 )
