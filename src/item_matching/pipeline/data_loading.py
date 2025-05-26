@@ -19,8 +19,10 @@ device = Accelerator().device
 
 
 def get_text_model():
+    model_name = "BAAI/bge-m3"
+    print(model_name)
     return BGEM3FlagModel(
-        "BAAI/bge-m3", use_fp16=True, device=device, normalize_embeddings=True
+        model_name, use_fp16=True, device=device, normalize_embeddings=True
     )
 
 
@@ -78,6 +80,7 @@ def setup_dinov2():
         .eval()
     )
     # return torch.compile(img_model)
+    print(f"Model Vision: {pretrain_name}")
     return img_model
 
 
@@ -92,6 +95,7 @@ def setup_siglip():
         .eval()
     )
     # return torch.compile(img_model)
+    print(f"Model Vision: {pretrain_name}")
     return img_model
 
 

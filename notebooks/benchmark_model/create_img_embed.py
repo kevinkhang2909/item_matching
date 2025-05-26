@@ -1,69 +1,27 @@
 import duckdb
-import polars as pl
 from transformers import (
-    SiglipVisionModel,
-    Dinov2WithRegistersModel,
     Siglip2VisionModel,
     AutoProcessor,
     Siglip2VisionConfig,
 )
-from PIL import Image
 from accelerate import Accelerator
 from time import perf_counter
 import torch
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from core_pro.ultilities import make_sync_folder
 from tqdm.auto import tqdm
 import numpy as np
+import sys
+from pathlib import Path
+
+sys.path.extend([str(Path.home() / "PycharmProjects/item_matching")])
+from src.item_matching.pipeline.data_loading import setup_dinov2, setup_siglip, ImagePathsDataset, collate_batch
+
 
 device = Accelerator().device
 torch.backends.cudnn.benchmark = True
-
-
-class ImagePathsDataset(Dataset):
-    def __init__(self, file_paths: list, img_size: int = 224):
-        self.file_paths = file_paths
-        self.transform = transforms.Compose(
-            [
-                # transforms.Resize(
-                #     img_size, interpolation=transforms.InterpolationMode.BICUBIC
-                # ),
-                transforms.CenterCrop(img_size),
-                transforms.ConvertImageDtype(torch.float32),  # to [0,1]
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                ),
-            ]
-        )
-
-    def __len__(self):
-        return len(self.file_paths)
-
-    def __getitem__(self, idx):
-        img = Image.open(self.file_paths[idx]).convert("RGB")
-        tensor = transforms.ToTensor()(img)  # HWC→CHW float32
-        tensor = self.transform(tensor)
-        return tensor
-
-
-def collate_batch(batch):
-    return torch.stack(batch, dim=0)
-
-
-def setup_siglip():
-    pretrain_name = "google/siglip-base-patch16-224"
-    img_model = (
-        SiglipVisionModel.from_pretrained(
-            pretrain_name,
-            torch_dtype=torch.bfloat16,
-        )
-        .to(device)
-        .eval()
-    )
-    # return torch.compile(img_model)
-    return img_model
 
 
 def setup_siglip2():
@@ -87,20 +45,6 @@ def setup_siglip2():
     )
     processor = AutoProcessor.from_pretrained(pretrain_name)
     return torch.compile(img_model), processor
-
-
-def setup_dinov2():
-    pretrain_name = "facebook/dinov2-with-registers-base"
-    img_model = (
-        Dinov2WithRegistersModel.from_pretrained(
-            pretrain_name,
-            torch_dtype=torch.bfloat16,
-        )
-        .to(device)
-        .eval()
-    )
-    # return torch.compile(img_model)
-    return img_model
 
 
 def fast_img_inference(
