@@ -11,7 +11,7 @@ from accelerate import Accelerator
 from core_pro.ultilities import create_batch_index
 from tqdm.auto import tqdm
 from FlagEmbedding import BGEM3FlagModel
-from transformers import Dinov2WithRegistersModel, Siglip2VisionModel
+from transformers import Dinov2WithRegistersModel, SiglipVisionModel
 from .func import _create_folder
 
 
@@ -49,7 +49,7 @@ class ImagePathsDataset(Dataset):
                 # transforms.Resize(
                 #     img_size, interpolation=transforms.InterpolationMode.BICUBIC
                 # ),
-                # transforms.CenterCrop(img_size),
+                transforms.CenterCrop(img_size),
                 transforms.ConvertImageDtype(torch.float32),  # to [0,1]
                 transforms.Normalize(
                     mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
@@ -63,29 +63,34 @@ class ImagePathsDataset(Dataset):
     def __getitem__(self, idx):
         img = Image.open(self.file_paths[idx]).convert("RGB")
         tensor = transforms.ToTensor()(img)  # HWC→CHW float32
-        return self.transform(tensor)
+        tensor = self.transform(tensor)
+        return tensor
 
 
-def get_img_model():
-    pretrain_name = "google/siglip2-base-patch16-224"
+def setup_dinov2():
+    pretrain_name = "facebook/dinov2-with-registers-base"
     img_model = (
-        Siglip2VisionModel.from_pretrained(
+        Dinov2WithRegistersModel.from_pretrained(
             pretrain_name,
             torch_dtype=torch.bfloat16,
         )
         .to(device)
         .eval()
     )
+    # return torch.compile(img_model)
+    return img_model
 
-    # pretrain_name = "facebook/dinov2-with-registers-base"
-    # img_model = (
-    #     Dinov2WithRegistersModel.from_pretrained(
-    #         pretrain_name,
-    #         torch_dtype=torch.bfloat16,
-    #     )
-    #     .to(device)
-    #     .eval()
-    # )
+
+def setup_siglip():
+    pretrain_name = "google/siglip-base-patch16-224"
+    img_model = (
+        SiglipVisionModel.from_pretrained(
+            pretrain_name,
+            torch_dtype=torch.bfloat16,
+        )
+        .to(device)
+        .eval()
+    )
     # return torch.compile(img_model)
     return img_model
 
@@ -133,11 +138,13 @@ class DataEmbedding:
         MODE: str,
         MATCH_BY: str = "text",
         SHARD_SIZE: int = 1_500_000,
+        model_name: str = "dinov2",
     ):
         # Config
         self.MATCH_BY = MATCH_BY
         self.MODE = MODE
         self.SHARD_SIZE = SHARD_SIZE
+        self.model_name = model_name
 
         # Path
         self.path = path
@@ -157,7 +164,10 @@ class DataEmbedding:
         else:
             self.col_input = f"{self.MODE}_file_path"
             self.col_embedding = f"{self.MATCH_BY}_embed"
-            self.img_model = get_img_model()
+            if self.model_name == "siglip":
+                self.img_model = setup_siglip()
+            else:
+                self.img_model = setup_dinov2()
 
     def load(self, data: pl.DataFrame):
         # Log total chunks

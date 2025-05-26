@@ -1,6 +1,12 @@
 import duckdb
 import polars as pl
-from transformers import SiglipVisionModel, Dinov2WithRegistersModel
+from transformers import (
+    SiglipVisionModel,
+    Dinov2WithRegistersModel,
+    Siglip2VisionModel,
+    AutoProcessor,
+    Siglip2VisionConfig,
+)
 from PIL import Image
 from accelerate import Accelerator
 from time import perf_counter
@@ -8,9 +14,9 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from numpy.lib.format import open_memmap
 from core_pro.ultilities import make_sync_folder
 from tqdm.auto import tqdm
+import numpy as np
 
 device = Accelerator().device
 torch.backends.cudnn.benchmark = True
@@ -21,9 +27,9 @@ class ImagePathsDataset(Dataset):
         self.file_paths = file_paths
         self.transform = transforms.Compose(
             [
-                transforms.Resize(
-                    img_size, interpolation=transforms.InterpolationMode.BICUBIC
-                ),
+                # transforms.Resize(
+                #     img_size, interpolation=transforms.InterpolationMode.BICUBIC
+                # ),
                 transforms.CenterCrop(img_size),
                 transforms.ConvertImageDtype(torch.float32),  # to [0,1]
                 transforms.Normalize(
@@ -38,7 +44,8 @@ class ImagePathsDataset(Dataset):
     def __getitem__(self, idx):
         img = Image.open(self.file_paths[idx]).convert("RGB")
         tensor = transforms.ToTensor()(img)  # HWC→CHW float32
-        return self.transform(tensor)
+        tensor = self.transform(tensor)
+        return tensor
 
 
 def collate_batch(batch):
@@ -55,7 +62,31 @@ def setup_siglip():
         .to(device)
         .eval()
     )
-    return torch.compile(img_model)
+    # return torch.compile(img_model)
+    return img_model
+
+
+def setup_siglip2():
+    pretrain_name = "google/siglip2-base-patch16-224"
+
+    config = Siglip2VisionConfig(
+        image_size=224,  # 224/16 = 14 patches per side → 196 total
+        patch_size=16,
+        num_channels=3,
+        embed_dim=768,
+        patch_embed_type="conv",  # if SigLIP-2 supports choosing Conv vs Linear
+    )
+    img_model = Siglip2VisionModel(config)
+
+    img_model = (
+        img_model.from_pretrained(
+            pretrain_name, torch_dtype=torch.bfloat16, ignore_mismatched_sizes=True
+        )
+        .to(device)
+        .eval()
+    )
+    processor = AutoProcessor.from_pretrained(pretrain_name)
+    return torch.compile(img_model), processor
 
 
 def setup_dinov2():
@@ -68,7 +99,8 @@ def setup_dinov2():
         .to(device)
         .eval()
     )
-    return torch.compile(img_model)
+    # return torch.compile(img_model)
+    return img_model
 
 
 def fast_img_inference(
@@ -78,7 +110,16 @@ def fast_img_inference(
     num_workers: int = 8,
     model: str = "dinov2",
 ):
-    # 1) Prepare DataLoader ---
+    # 1) Load & compile model in mixed precision
+    device = torch.device("cuda")
+    if model == "siglip":
+        img_model = setup_siglip()
+    elif model == "siglip2":
+        img_model, processor = setup_siglip2()
+    else:
+        img_model = setup_dinov2()
+
+    # 2) Prepare DataLoader ---
     ds = ImagePathsDataset(file_paths, img_size=224)
     loader = DataLoader(
         ds,
@@ -89,26 +130,9 @@ def fast_img_inference(
         collate_fn=collate_batch,
     )
 
-    # 2) Load & compile model in mixed precision
-    device = torch.device("cuda")
-    if model == "siglip":
-        img_model = setup_siglip()
-    else:
-        img_model = setup_dinov2()
-
-    # 3) Pre‑allocate a .npy memmap for all embeddings
-    total = len(ds)
-    dim = img_model.config.hidden_size  # e.g. 1024
-    mmap = open_memmap(
-        filename=str(path / f"{model}_embeds.npy"),
-        mode="w+",
-        dtype="float32",
-        shape=(total, dim),
-    )
-
-    # 4) Inference + save loop
+    # 3) Inference + save loop
     start = perf_counter()
-    idx = 0
+    list_embeds = []
     with torch.inference_mode():
         for batch in tqdm(loader):
             # async copy to GPU
@@ -118,12 +142,11 @@ def fast_img_inference(
             normed = F.normalize(pooled, p=2, dim=1)  # still on GPU
 
             emb = normed.cpu().numpy().astype("float32")  # (B, dim)
-            bs = emb.shape[0]
-            mmap[idx : idx + bs] = emb  # write into .npy
-            idx += bs
+            list_embeds.append(emb)
 
+    embeds = np.concatenate(list_embeds, axis=0)
+    np.save(path / f"{model}_embeds.npy", embeds)
     durations = perf_counter() - start
-    mmap.flush()  # ensure all data is on disk
 
     result.append((model, durations))
     return result
@@ -136,7 +159,8 @@ file = path / f"data_sample_{cluster}_clean.parquet"
 
 # data loading
 query = f"""
-select *
+select * exclude(file_path)
+, REPLACE(file_path, 'data_4t', '75b198db-809a-4bd2-a97c-e52daa6b3a2d') AS file_path
 from read_parquet('{file}')
 """
 df = duckdb.sql(query).pl().unique(["item_id"])
@@ -144,10 +168,11 @@ file_paths = df["file_path"].to_list()
 
 # run
 result = []
+# result = fast_img_inference(result=result, file_paths=file_paths, model="siglip2")
 result = fast_img_inference(result=result, file_paths=file_paths, model="siglip")
 result = fast_img_inference(result=result, file_paths=file_paths, model="dinov2")
 
-# result
-df_result = pl.DataFrame(result, orient="row", schema=["name", "duration"])
-df_result.write_csv(path / "img_embed_benchmark.csv")
-print(df_result)
+# # result
+# df_result = pl.DataFrame(result, orient="row", schema=["name", "duration"])
+# df_result.write_csv(path / "img_embed_benchmark.csv")
+# print(df_result)
